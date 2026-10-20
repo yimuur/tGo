@@ -1,0 +1,10 @@
+{
+  "name": "tgo-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "tGo 前端产品（frontend/static 为托管目录；WEBUI/ 仅为静态 UI 审核基线，不发布）",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

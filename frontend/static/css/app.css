@@ -1,0 +1,3010 @@
+/* ============================================================================
+ * tGo 产品前端 · 唯一样式表（app.css）
+ *
+ * 本文件 = WEBUI 审核稿基线 tgo-ui.css（Part Ⅰ） + 产品壳/视图差异（Part Ⅱ），
+ * 两者同选择器声明已折叠去重；产品页与组件 demo 一律只引本文件。
+ * WEBUI/css/tgo-ui.css 仍保留为「纯静态审核副本」（逐字相同），不参与业务逻辑、
+ * 不作为索引源、不随产品代码发布。
+ * ========================================================================== */
+
+/* ============================================================================
+ * ============================ Part Ⅰ · 基线设计系统 ============================
+ * 源：WEBUI/css/tgo-ui.css（静态审核稿原样迁移，仅剔除 WEBUI 专属审核/演示脚手架：
+ *     .review-tools/.seg/body.texture-on/.drawer-demo/.preview-drawer——产品未引用；
+ *     及冗余规则 `.board-wrap svg .stones` 组级投影——产品 SVG 预览棋子（miniBoardSvg）
+ *     已自带 feDropShadow、Canvas 棋盘（paintStone）自绘投影，属重复渲染（2026/09/14）
+ *     ——两者仍保留在 WEBUI 审核稿中）
+ * ========================================================================== */
+
+/* ============ Design Tokens（§4.2 / §6.6） ============ */
+:root {
+  color-scheme: light;
+  --bg-base: #F5F1E8;                 /* 宣纸 */
+  --bg-glass: rgba(255,255,255,.55);
+  --bg-glass-strong: rgba(255,255,255,.72);
+  --text-1: #2B2B2B;
+  --text-2: #6B6B6B;
+  --text-3: #7C7C76;                 /* 三级文字：提升对比度（原 #9A9A94 ≈2.5:1 过暗） */
+  --border: rgba(0,0,0,.08);
+  --border-strong: rgba(0,0,0,.14);
+  --high: rgba(255,255,255,.85);
+  /* 主题色：黛蓝（默认） */
+  --accent: #1F4E5F;
+  --accent-soft: rgba(31,78,95,.12);
+  --accent-contrast: #FFFFFF;
+  /* 点评语义五色（LEVEL.md） */
+  --c-brilliant: #3B82F6; --c-good: #22A06B; --c-slow: #D9A400; --c-mistake: #F2711C; --c-blunder: #D64545;
+  /* 引擎状态（§6.1）：未启动/加载/就绪/分析/异常/致命 */
+  --eng-init: #D9A400; --eng-idle: #22A06B; --eng-busy: #3B82F6; --eng-dead: #D64545; --eng-fatal: #8C1F1F;
+  --eng-off: #8C8C86;              /* 未启动（STOPPED）：进程未运行（从未启动/干净停止） */
+  /* 按钮「点亮」金色系（2026/09/17 人工决策：点亮＝暖金，**与主题 accent 解耦**——点亮后
+     须一眼区别于主题色/按钮主色）。晕影＝径向渐变（`.icon-lit::before`），中心最亮 → 外圈渐隐。
+     对比度口径（深浅两主题各自取值，勿单改其一）：
+       次级按钮（玻璃底）图标本体 浅 `--lit-ink` #A66A00 ≈4.6:1 / 深 #FFD24D ≈12:1；
+       主按钮（accent 实底）另取一枚 `--lit-ink-on-accent` 浅＝亮金 ≈6:1 / 深＝深金 ≈3.7:1（图形阈值 ≥3:1）。 */
+  --lit-ink: #A66A00;                 /* 次级按钮图标本体（浅色＝深金） */
+  --lit-ink-on-accent: #FFD24D;       /* 主按钮图标本体（accent 实底上取亮金） */
+  --lit-core: rgba(255,233,166,.85);  /* 晕影中心（最亮） */
+  --lit-halo: rgba(214,154,0,.42);    /* 晕影外圈（渐隐） */
+  /* 赞助（添盏清茶）：茶汤填充 / 金色点缀 / 沙化粒子基色 */
+  --sponsor-tea: #D99A2B;
+  --sponsor-tea-deep: #9A5E12;
+  --sponsor-tea-soft: rgba(217,154,43,.16);
+  --sponsor-gold: #E8B44A;
+  /* 棋盘（浅色＝榧木，§4.1.1） */
+  --wood-a: #DFC094; --wood-b: #C9A87A;
+  --grid: rgba(74,58,38,.65);
+  --coord: rgba(74,58,38,.55);
+  /* 最外圈刻线（外框）加粗倍率（2026/09/22 人工要求：可用参数开关设置是否加粗）。
+     仅作用于棋盘最外一圈线，作用于内线宽度的倍率；**≤1 = 不加粗（开关关闭）**。
+     与脚本常量 GRID_OUTER_SCALE_FALLBACK 同值（token 缺失时兑底）。 */
+  --grid-outer-scale: 1.55;
+  /* 棋盘木纹（2026/09/21 人工确认的方案）：`--wood-grain`＝垂直细木纹 / `--wood-grain-band`
+     ＝年轮明暗条带；值内 alpha 即基准强度，脚本以 globalAlpha 施加 ≤1 的相对强度（见
+     js/core/wood-grain.js WOOD_GRAIN.alphaLo/alphaHi）。调色/调强只改此处。 */
+  --wood-grain: rgba(120,84,50,.07);
+  --wood-grain-band: rgba(120,84,50,.055);
+  /* 棋盘（§4.1；人工反馈：去掉所有棋盘纹理，仅保留木质渐变） */
+  --board-bg: linear-gradient(160deg, var(--wood-a), var(--wood-b));
+  /* 对弈/复盘页棋盘最小边长（页面视图不滚动兜底，2026/09/13 人工决策：
+     高度连「控件行 + 该边长」都放不下时，页面恢复纵向滚动而不把棋盘缩得更小） */
+  --board-min-size: 320px;
+  /* 毛笔墨刷徽章（§5.5.4 棋力评估）：墨色 */
+  --brush-a: #57534A; --brush-b: #33302B; --brush-c: #1E1C18;
+  --brush-text: #F5F1E8;
+  /* 云子棋子材质（WEBUI/yunzi.html Design Token，2026/09/08 人工确认完全照搬；
+     同日修订：白子 token 与 yunzi 逐字对齐——--stone-w-mid #fdfdfc、--stone-w-rim
+     rgba(234,150,141,.8)，修正此前偏淡近似值）：
+     黑＝高光墨绿 #5a665d→墨黑 #111111→#000000，白＝#fff→暖白 #fdfdfc→#f0ece9；
+     底部-右缘微透：黑=墨绿 rgba(26,59,34,.7) / 白=丹红 rgba(234,150,141,.8)
+     （即 CSS `inset -3px -4px 8px` @R20 的 token 色；Canvas 用 Off-screen Hole Shadow
+     精确模拟，CSS `.stone-mini` 直接 box-shadow inset）。
+     对弈/回放 Canvas 石、列表预览 SVG、提子控件、.stone-mini 统一取用（脚本读 CSS，缺失才兜底）。 */
+  --stone-b-hi: #5a665d; --stone-b-mid: #111111; --stone-b-lo: #000000;
+  --stone-b-rim: rgba(26,59,34,.7);
+  --stone-w-hi: #ffffff; --stone-w-mid: #fdfdfc; --stone-w-lo: #f0ece9;
+  --stone-w-rim: rgba(234,150,141,.8);
+  --stone-drop-b: rgba(0,0,0,.6);  /* 黑子物理投影（yunzi 外阴影 2px 4px 6px @R20） */
+  --stone-drop-w: rgba(0,0,0,.4);  /* 白子物理投影 */
+  /* 预览 SVG 石子专用 token（miniBoardSvg；SVG 渲染路径与 Canvas/CSS 不一致，
+     2026/09/08 独立成组便于单独微调；初值同 yunzi）。 */
+  --pv-stone-b-hi: #5a665d; --pv-stone-b-mid: #111111; --pv-stone-b-lo: #000000;
+  --pv-stone-b-rim: rgba(26,59,34,.7);
+  --pv-stone-w-hi: #ffffff; --pv-stone-w-mid: #fdfdfc; --pv-stone-w-lo: #f0ece9;
+  --pv-stone-w-rim: rgba(230,200,196,0.7);
+  --pv-stone-drop-b: rgba(0,0,0,.6);
+  --pv-stone-drop-w: rgba(0,0,0,.4);
+  /* 胜率条黑段底色（非棋子材质，沿用既有视觉） */
+  --wr-black: #6E8265;
+  --shadow-card: 0 6px 24px rgba(0,0,0,.10);
+  /* 棋盘外框悬浮阴影（毛玻璃浮起感：大柔和投影 + 贴身投影 + 细描边；深色覆写在 dark） */
+  --shadow-board: 0 12px 30px rgba(74,53,37,.28), 0 3px 10px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.05);
+  --radius-card: 14px;
+  /* §4.3（人工更新）：全局不用宋体字，标题/正文/UI 统一无衬线 */
+  --font-ui: system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+  --font-title: var(--font-ui);
+  --ease: cubic-bezier(0.2,0.7,0.3,1);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  /* 黛蓝（深色，UI_UX §4.2） */
+  --accent: #6FA8B8;
+  --accent-soft: rgba(111,168,184,.16);
+  --bg-base: #14161A;                 /* 夜墨 */
+  --bg-glass: rgba(28,30,36,.60);
+  --bg-glass-strong: rgba(28,30,36,.78);
+  --text-1: #E8E6E1;
+  --text-2: #9A9A94;
+  --text-3: #8A8A84;                 /* 深色三级文字：提升对比度（≈5.2:1） */
+  --border: rgba(255,255,255,.10);
+  --border-strong: rgba(255,255,255,.18);
+  --high: rgba(255,255,255,.10);
+  --accent-contrast: #0C1114;
+  /* 按钮「点亮」金色系（深色主题：亮金本体 + 更亮的晕影中心；主按钮 accent 实底浅 → 取深金） */
+  --lit-ink: #FFD24D;
+  --lit-ink-on-accent: #5E3D00;
+  --lit-core: rgba(255,243,201,.80);
+  --lit-halo: rgba(255,206,84,.40);
+  /* 赞助（深色）：茶汤提亮，保证按钮内文字/图标对比 */
+  --sponsor-tea: #E8B45A;
+  --sponsor-tea-deep: #B8781E;
+  --sponsor-tea-soft: rgba(232,180,90,.18);
+  --sponsor-gold: #F2C96B;
+  /* 深色棋盘＝檀木色 + 金色刻线（U-11） */
+  --wood-a: #5C3427; --wood-b: #47281E;
+  --grid: rgba(233,198,128,.62);
+  --coord: rgba(233,198,128,.45);
+  /* 木纹（深色）：细木纹＝更深的棕黑（顺纹凹陷），年轮条带＝极淡的暖金（木料受光起伏） */
+  --wood-grain: rgba(20,8,4,.14);
+  --wood-grain-band: rgba(255,205,150,.06);
+
+  /* 毛笔墨刷徽章（深色）：浅墨 */
+  --brush-a: #6E7480; --brush-b: #464C58; --brush-c: #2A2E36;
+  --brush-text: #101216;
+  --shadow-card: 0 6px 24px rgba(0,0,0,.45);
+  --shadow-board: 0 16px 40px rgba(0,0,0,.55), 0 4px 12px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.05);
+  --eng-off: #9A9A94;              /* 未启动（深色主题：提亮中性灰） */
+}
+/* 主题色选择器值 = theme.js 写入的 data-accent 值 'zhu'（注意：WEBUI 审核稿用 'zhusha'，两者各自成对） */
+html[data-accent="zhu"] {
+  --accent: #A85B4D;                  /* 朱砂（浅色，W-19） */
+  --accent-soft: rgba(168,91,77,.14);
+}
+html[data-accent="zhu"][data-theme="dark"] {
+  --accent: #CE9184;                  /* 朱砂（深色，W-19） */
+  --accent-soft: rgba(206,145,132,.16); /* 深色 accent-soft 随主题色同步（对齐黛蓝深 .16） */
+}
+
+/* ============ 基础 ============ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+/* 2026/09/14：body 不得钉死为视口高度——height:100% 令 body 盒仅 100vh 高、内容
+   外溢成文档滚动；顶栏 sticky 的约束矩形（containing block＝body 盒）随之止于首屏，
+   滚过一屏后顶栏“跟随滑走”（复盘/管理页实测：scrollY>700 后 tbTop 变负）。
+   改 body min-height:100% —— 盒随内容增长，sticky 全程吸顶；对弈/复盘页 body
+   另有 height:100dvh 覆写（满视口 flex 布局），不受影响。 */
+html { height: 100%; }
+body {
+  min-height: 100%;   /* 随内容增长（见上）：顶栏 sticky 约束矩形覆盖整页，不会中途滑走 */
+  font-family: var(--font-ui);
+  background: var(--bg-base);
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: background .25s ease, color .25s ease;
+  -webkit-font-smoothing: antialiased;
+  /* 页面不横向滚动（2026/09/13）：全宽 fixed 元素在视口右缘外仍占滚动区（实测
+     14~15px）；body 的 overflow-x:clip 传播到视口即消除，visible+clip 为合法组合
+     （纵向滚动不受影响，html overflow 为 visible 时传播生效）。
+     2026/09/15：Tooltip 改单例浮层（视口内钳制）后不再是横向溢出源，规则保留作兜底。 */
+  overflow-x: clip;
+}
+button, input, select {
+  font-family: inherit; font-size: inherit; color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 非 button 的语义化 tap 目标（WIG：touch-action: manipulation 防双击缩放延迟） */
+[role="button"], .game-item, .suggest-item { touch-action: manipulation; }
+button { background: none; border: 0; cursor: pointer; }
+a { color: var(--accent); text-decoration: none; }
+.icon { width: 20px; height: 20px; display: inline-block; flex: none; vertical-align: -0.2em; }
+.num { font-variant-numeric: tabular-nums; }
+.ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--text-2); }
+.hidden { display: none !important; }
+
+/* 各页主标题与可访问性（§6.8 / WIG） */
+h1, h2, h3 { text-wrap: balance; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 12px; top: -48px; z-index: 999;
+  padding: 8px 16px; border-radius: 10px;
+  background: var(--accent); color: var(--accent-contrast); font-size: 13px;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 12px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.input:focus-visible, .select:focus-visible, .switch:focus-visible { outline: none; }
+
+/* 触控与滚动（§6.7 / WIG） */
+html { -webkit-tap-highlight-color: transparent; }
+.dialog, .dialog-mask { overscroll-behavior: contain; }
+
+/* ============ 顶栏（§3.2） ============ */
+/* 人工反馈：① 宽度上限＝棋盘+侧栏+间隙（与 .layout 对齐居中）② 毛玻璃卡片样式（圆角，非直角） */
+.topbar {
+  position: sticky; top: 8px; z-index: 60; height: 56px;
+  max-width: 1440px; margin: 8px auto 0;
+  display: flex; align-items: center; gap: 20px; padding: 0 20px;
+  background: var(--bg-glass); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-title); font-size: 20px; font-weight: 600; letter-spacing: 1px; color: inherit; text-decoration: none; border-radius: 10px; }
+.brand:hover .brand-logo { opacity: .86; }
+.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* 品牌 Logo＝SVG 标题（title.svg：tGo 围棋 + MCTS/AI 标识，人工反馈；产品版由 Part Ⅱ 按 data-theme 选切主题双文件，见文件末端） */
+.brand .brand-logo { height: 34px; width: auto; max-width: 210px; flex: none; display: block; transition: opacity .15s ease; }
+nav.main { display: flex; gap: 4px; }
+nav.main a {
+  padding: 6px 14px; border-radius: 10px; color: var(--text-2); text-decoration: none; font-size: 14px;
+  transition: background-color .15s ease, color .15s ease;
+}
+nav.main a:hover { color: var(--text-1); background: var(--accent-soft); }
+nav.main a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.topbar .spacer { flex: 1; }
+/* 移动端顶栏 2 行：默认单行（contents），<768 拆成两行（§3.2 人工反馈） */
+.topbar .row1, .topbar .row2 { display: contents; }
+.eng-pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px;
+  background: var(--bg-glass); border: 1px solid var(--border); font-size: 12px; color: var(--text-1); cursor: pointer;
+}
+.eng-pill:hover { border-color: var(--accent); background: var(--bg-glass-strong); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--eng-idle); }
+.dot.s-off { background: var(--eng-off); }
+.dot.s-init { background: var(--eng-init); color: var(--eng-init); }
+.dot.s-tune { background: var(--eng-init); color: var(--eng-init); }
+.dot.s-idle { background: var(--eng-idle); }
+.dot.s-busy { background: var(--eng-busy); color: var(--eng-busy); }
+.dot.s-dead { background: var(--eng-dead); }
+.dot.s-fatal { background: var(--eng-fatal); }
+/* 引擎胶囊圆点呼吸（加载中/调优中/分析中，2026/09/17 人工口径）：
+ * 圆点本体亮度脉动 + 外圈晕影自内向外扩散渐隐（圆心最亮 → 晕影外圈渐隐）；周期 1.8s 同帧起搏。
+ * 色随状态（琥珀/琥珀/蓝）；prefers-reduced-motion 抑制见下方减弱动效区。 */
+.dot.s-init, .dot.s-tune, .dot.s-busy {
+  position: relative;
+  animation: engPillBreath 1.8s ease-in-out infinite;
+}
+.dot.s-init::after, .dot.s-tune::after, .dot.s-busy::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: currentColor; pointer-events: none;
+  animation: engPillHalo 1.8s ease-out infinite;
+}
+@keyframes engPillBreath { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes engPillHalo { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(2.4); opacity: 0; } }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-2); border: 1px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease; flex: none;
+}
+.icon-btn:hover { color: var(--text-1); background: var(--accent-soft); border-color: var(--border); }
+/* 人工反馈：顶栏 [+创建对局] / [导入棋谱] 等长，文字水平/垂直居中 */
+.topbar .btn-primary {
+  min-width: 112px; flex: none;
+  justify-content: center; text-align: center; padding: 0 10px;
+}
+
+/* ============ 按钮（§4.6） ============ */
+.btn {
+  height: 36px; padding: 0 14px; border-radius: 10px; display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 500; border: 1px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, filter .15s ease; white-space: nowrap;
+}
+.btn .icon { width: 17px; height: 17px; }
+.btn-primary { background: var(--accent); color: var(--accent-contrast); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-secondary { background: var(--bg-glass); border-color: var(--border); color: var(--text-1); }
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost { color: var(--text-2); }
+.btn-ghost:hover { color: var(--accent); background: var(--accent-soft); }
+.btn-danger { color: var(--c-blunder); }
+.btn-danger:hover { background: rgba(214,69,69,.10); }
+.btn[disabled], .btn.disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }
+.btn-lg { height: 44px; padding: 0 22px; font-size: 14px; }
+.btn.loading { pointer-events: none; opacity: .75; }
+.btn .spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============ 卡片（§4.6） ============ */
+.card {
+  background: var(--bg-glass); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border); border-radius: var(--radius-card);
+  padding: 16px; box-shadow: var(--shadow-card); transition: transform .15s var(--ease);
+}
+.card h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+.card h3 .icon { width: 16px; height: 16px; color: var(--accent); }
+
+/* ============ 表单控件（§4.6 / §6.5） ============ */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field > label { font-size: 13px; color: var(--text-2); }
+.field .hint { font-size: 12px; color: var(--text-3); }
+.field .err { font-size: 12px; color: var(--c-blunder); }
+.input, .select {
+  height: 38px; width: 100%; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--bg-glass-strong); color: var(--text-1);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.input:focus-visible, .select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.input::placeholder { color: var(--text-3); }
+.select { appearance: auto; }
+.segctl { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--bg-glass); border: 1px solid var(--border); flex-wrap: wrap; }
+.segctl button {
+  height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; color: var(--text-2);
+  display: inline-flex; align-items: center;
+  transition: background-color .15s ease, color .15s ease;
+}
+.segctl button.on { background: var(--accent); color: var(--accent-contrast); }
+.segctl button:not(.on):hover { color: var(--text-1); background: var(--accent-soft); }
+.switch { position: relative; width: 48px; height: 28px; flex: none; border-radius: 999px; background: var(--border-strong); transition: background .2s ease; cursor: pointer; }
+.switch::after {
+  content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--high); box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s var(--ease);
+}
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(20px); }
+.range { width: 100%; accent-color: var(--accent); }
+.range-val { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 46px; text-align: right; }
+/* AI 难度（创建对局，人工反馈 create.png 排版；滑杆本身使用全局统一 .range 样式） */
+.diff-label { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--text-2); font-weight: 600; }
+.diff-label .diff-val { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.diff-scale { display: flex; justify-content: space-between; margin-top: 2px; font-size: 12px; color: var(--text-2); }
+.form-row { display: flex; align-items: center; gap: 10px; }
+.form-row .grow { flex: 1; }
+.divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border-strong), transparent); margin: 16px 0; }
+.checkline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+
+/* ============ 列表项（§4.6：列宽固定防错位） ============ */
+.list-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid transparent; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease; font-size: 13px;
+}
+.list-item:hover { background: var(--accent-soft); }
+.list-item.sel { border-color: var(--accent); background: var(--accent-soft); }
+.list-item + .list-item { margin-top: 4px; }
+.col { flex: none; }
+.col-1 { width: 26px; } .col-2 { width: 64px; } .col-3 { width: 92px; } .col-4 { width: 76px; } .col-5 { width: 70px; }
+.col-right { margin-left: auto; text-align: right; }
+
+/* ============ 徽章 / 胶囊 ============ */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; border: 1px solid var(--border-strong); color: var(--text-2);
+}
+.badge.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.badge.warn { background: rgba(217,164,0,.14); color: #8A6700; border-color: transparent; }
+html[data-theme="dark"] .badge.warn { color: #E0B53B; }
+.badge.danger { background: rgba(214,69,69,.12); color: var(--c-blunder); border-color: transparent; }
+.badge.info { background: rgba(59,130,246,.12); color: #2563EB; border-color: transparent; }
+html[data-theme="dark"] .badge.info { color: #7BA8F5; }
+/* 信息行开关徽章（自动点评；可点击，on/off 双态，2026/09/10 人工口径） */
+button.badge.toggle {
+  font-family: inherit; cursor: pointer; background: transparent; color: var(--text-2);
+  line-height: 1.6; /* 与 .badge 一致（按钮默认 line-height:normal 会偏矮，2026/09/13 字号口径统一） */
+  border: 1px solid var(--border-strong); transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+button.badge.toggle.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+button.badge.toggle:hover { border-color: var(--accent); }
+button.badge.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 收藏 chip：与状态 tab 高度一致；爱心与文字加空格（人工反馈 02-31-50） */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-strong);
+  font-size: 12px; color: var(--text-2); cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease; background: var(--bg-glass);
+}
+.chip.on { background: var(--accent); color: var(--accent-contrast); border-color: transparent; }
+.chip:not(.on):hover { border-color: var(--accent); color: var(--text-1); }
+
+/* ============ Toast / Dialog（§4.6；Toast 唯一样式源 = 玻璃气泡 + 主题 token + 下滑进入/淡出） ============ */
+.toast {
+  display: flex; align-items: center; gap: 8px; pointer-events: auto; max-width: 100%;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--bg-glass-strong); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); color: var(--text-1); font-size: 13px; line-height: 1.5;
+  cursor: pointer;
+  animation: tgoToastIn .32s var(--ease);   /* 下滑进入（§6.5 动效表：320ms） */
+  transition: opacity .2s var(--ease);      /* 退场淡出（时长与 toast.js TOAST_EXIT_MS 一致） */
+}
+.toast.toast-out { opacity: 0; pointer-events: none; }
+/* 语义标识：由「左侧 3px 语义色边条」改为「语义色 SVG 图标 + 文案」（图标形状区分级别，颜色随主题 token） */
+.toast-icon { flex: none; display: inline-flex; align-items: center; line-height: 0; }
+.toast-icon .icon { width: 16px; height: 16px; }
+.toast-text { min-width: 0; }
+.toast-info    .toast-icon { color: var(--accent); }     /* 信息级取主题色（随主题色切换） */
+.toast-success .toast-icon { color: var(--eng-idle); }
+.toast-warning .toast-icon { color: var(--eng-init); }
+.toast-error   .toast-icon { color: var(--eng-dead); }
+@keyframes tgoToastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+.dialog-mask {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.35); backdrop-filter: blur(4px); padding: 20px;
+}
+.dialog {
+  width: min(560px, 100%); max-height: 86vh; overflow: auto; border-radius: 20px; padding: 24px;
+  background: var(--bg-glass-strong); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card); animation: dlg-in .24s var(--ease);
+}
+.dialog.wide { width: min(680px, 100%); }
+@keyframes dlg-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.dialog h2 { font-family: var(--font-title); font-size: 20px; font-weight: 600; margin-bottom: 14px; }
+.dialog .foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.dlg-actions .btn-danger { border: 1px solid rgba(214,69,69,.4); }
+
+/* ============ 对弈布局（§3.4 / §5.2） ============ */
+.layout { max-width: 1440px; margin: 0 auto; padding: 20px; }
+.game { display: flex; gap: 20px; align-items: flex-start; }
+.board-zone { flex: 1; min-width: 0; position: relative; }  /* position:relative＝终局/结算提示桥定位基准（产品） */
+.sidebar { width: 384px; flex: none; display: flex; flex-direction: column; gap: 14px; }
+.info-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.info-meta { font-size: 13px; color: var(--text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.info-meta .sep { color: var(--text-3); }
+.info-actions { margin-left: auto; display: flex; gap: 8px; }
+
+/* 棋盘（§5.2.2：榧木/檀木 = 渐变 + 细木纹纹理 + 微光，§4.1；外框悬浮阴影见 --shadow-board） */
+.board-wrap {
+  position: relative; width: 100%; aspect-ratio: 1; max-height: calc(100vh - 250px);
+  margin: 0 auto; border-radius: 8px; overflow: hidden;
+  background: var(--board-bg);
+  box-shadow: var(--shadow-board);
+}
+.board-wrap svg { width: 100%; height: 100%; display: block; }
+/* （基线 `.board-wrap svg .stones` 组级投影已删除，2026/09/14 人工确认：产品中唯一
+ *   命中的 SVG 棋盘＝列表/抽屉预览（miniBoardSvg）已自带分色 feDropShadow，Canvas
+ *   棋盘由 paintStone 在描画时烘焙投影 → 组级 CSS 投影对预览属重复渲染；静态审核稿
+ *   tgo-ui.css 仍保留该规则供其纯 SVG 演示使用） */
+/* 棋盘左上角提示（末手 `白 J3` / `白 PASS`；结算期显示结算文案）。
+   2026/09/13 人工口径：默认胶囊样式；**仅当提示与交叉点/棋子重叠**时降级为
+   半透明（.is-overlap，去除背景模糊）以免遮挡棋盘；两类状态均 pointer-events:none，
+   点击穿透到棋盘，不影响正常落子。 */
+.board-note {
+  position: absolute; top: 10px; left: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--bg-glass-strong); border: 1px solid var(--border); backdrop-filter: blur(8px);
+  font-size: 12px; color: var(--text-2); z-index: 3; pointer-events: none;
+}
+.board-note.is-overlap { opacity: .55; backdrop-filter: none; }
+.board-tag {
+  position: absolute; top: 10px; right: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent);
+  font-size: 12px; font-weight: 600; z-index: 3;
+}
+.think-capsule {
+  position: absolute; top: 10px; right: 12px; display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 999px; background: var(--bg-glass-strong);
+  border: 1px solid var(--border); backdrop-filter: blur(8px); font-size: 12px; color: var(--text-1); z-index: 3;
+}
+.think-capsule .t-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--eng-busy); animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+.board-dead { filter: saturate(.75); }
+.warn-banner {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px;
+  background: rgba(214,69,69,.10); border: 1px solid rgba(214,69,69,.35); color: var(--c-blunder); font-size: 13px; margin-bottom: 12px;
+}
+.warn-banner .btn { margin-left: auto; }
+
+/* 底部行（§5.2.5） */
+.bottom-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; transition: opacity .15s ease; }  /* transition＝结算期间底行显隐（产品） */
+.captures { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-2); }
+.cap { display: flex; align-items: center; gap: 6px; }
+/* 提子计数画布首帧前占位（防加载瞬间取默认 300×150 把底部行撑高、令棋盘自适应尺寸先小后大
+   跳变）：高度＝captureMetrics(big=12) 的 padY*2+big*2=36 固定值；首帧后脚本内联写入实际
+   尺寸（宽度随提子数文本变化）覆盖，参数调整无需同步改这里。 */
+.captures canvas { width: 143px; height: 36px; }
+.stone-mini {
+  width: 18px; height: 18px; border-radius: 50%; flex: none;
+  /* 云子（与主棋盘 paintStone 同源 token，2026/09/08）：石体 35% 35% 三档渐变；
+     外投影/底-右缘辉光按 18px（R=9，yunzi @R20 ×0.45）等比缩放、无描边 */
+  background: radial-gradient(circle at 35% 35%, var(--stone-b-hi) 0%, var(--stone-b-mid) 40%, var(--stone-b-lo) 100%);
+  box-shadow: 1px 2px 3px var(--stone-drop-b), inset -1.4px -1.8px 3.6px var(--stone-b-rim);
+}
+.stone-mini.w {
+  background: radial-gradient(circle at 35% 35%, var(--stone-w-hi) 0%, var(--stone-w-mid) 50%, var(--stone-w-lo) 100%);
+  box-shadow: 1px 2px 3px var(--stone-drop-w), inset -1.4px -1.8px 3.6px var(--stone-w-rim);
+}
+.bottom-actions { margin-left: auto; display: flex; gap: 8px; }
+
+/* 胜率条（移动，§5.2.5） */
+.wr-bar { display: none; }
+/* 黑白胜率条（人工反馈 winrate.png：黑段实胶囊 + 白段实胶囊，中间留缝） */
+/* 长度覆盖整个黑白胜率数字之间（除间隙外）：轨道必须宽 100% 填充中间 1fr 列 */
+.wr-track { height: 12px; width: 100%; display: flex; gap: 2px; }
+.wr-track .b, .wr-track .w { border-radius: 999px; display: block; }
+/* 黑段宽度过渡：胜率更新平滑动画（2026/09/13 人工反馈；视图侧只改 width 不重建 DOM） */
+.wr-track .b { background: var(--wr-black); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); transition: width .35s cubic-bezier(.4, 0, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .wr-track .b { transition: none; } }
+.wr-track .w { flex: 1; background: var(--bg-glass-strong); box-shadow: inset 0 0 0 1px var(--border-strong); }
+html[data-theme="dark"] .wr-track .b { background: #33402F; }
+html[data-theme="dark"] .wr-track .w { background: #F2EFE8; }
+.wr-label { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-1); font-weight: 600; white-space: nowrap; }
+.wr-label small { font-weight: 400; color: var(--text-2); }
+
+/* 侧栏内容（§5.2.6） */
+/* 对局信息：一行 黑 张三·1段 vs 白 真人·1K（人工反馈：改为一行） */
+.players { display: flex; flex-direction: column; gap: 8px; }
+/* 玩家行：黑名左对齐、VS 居中、白名右对齐（人工反馈） */
+.player-line {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; min-width: 0;
+}
+.player-line .p-side { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.player-line .p-side.l { justify-self: start; }
+.player-line .p-side.r { justify-self: end; justify-content: flex-end; }
+.player-line .vs-badge { justify-self: center; }
+.player-line .stone-mini { width: 18px; height: 18px; flex: none; }
+.player-line .rank { font-size: 12px; font-weight: 400; color: var(--text-2); }
+/* 段位右上角标（§9：人名旁边段位一律右上角标表示，辅助字阶） */
+.rank-sup { font-size: 12px; font-weight: 400; color: var(--text-2); vertical-align: super; line-height: 0; margin-left: 2px; white-space: nowrap; }
+/* vs 使用 SVG 绘制徽章（人工反馈） */
+.vs-badge {
+  display: inline-flex; flex: none; width: 30px; height: 20px; vertical-align: middle;
+}
+.vs-badge svg { width: 100%; height: 100%; display: block; }
+/* vs 内联徽章（列表标题/摘要等文本行内使用，§5.5.1 黑名 vs(SVG) 白名） */
+.vs-badge.inline { width: 26px; height: 18px; margin: 0 3px; vertical-align: -0.3em; }
+/* 段位右上角标（§9：人名旁边段位一律右上角标表示，辅助字阶） */
+.rank-sup { font-size: 12px; font-weight: 400; color: var(--text-2); vertical-align: super; line-height: 0; margin-left: 2px; white-space: nowrap; }
+/* AI 侧风格标签（人机信息卡/列表/报告：AI 名后 `· 标准/拟人/匹配`，人工口径 2026/09/10） */
+.ai-tag { font-size: 12px; font-weight: 400; color: var(--text-2); margin-left: 2px; white-space: nowrap; }
+/* 仅保留 胜率/目差 两项（人工反馈：删除当前手数/AI匹配） */
+.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.kv .item { background: var(--bg-glass-strong); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; text-align: center; }  /* 人工反馈：胜率/目差居中 */
+.kv .label { font-size: 12px; color: var(--text-2); }
+.kv .value { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kv .value small { font-size: 12px; font-weight: 400; color: var(--text-2); }
+.chart { width: 100%; height: 160px; position: relative; }  /* position:relative＝chart-note 空态说明定位基准（产品） */
+.chart svg { width: 100%; height: 100%; display: block; }
+.skeleton { height: 100px; border-radius: 10px; background: linear-gradient(90deg, var(--bg-glass-strong), var(--bg-glass), var(--bg-glass-strong)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* 支招卡（§5.2.6 / §4.2 热度）
+   人工反馈：① 去掉「TOP5」「请求支招」「P2 深度分析精度」；② 胜率/目差列宽固定对齐 */
+.coach-title { margin-bottom: 10px; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.coach-top { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.coach-list { display: flex; flex-direction: column; gap: 6px; }
+.coach-item {
+  display: grid; grid-template-columns: 26px 44px 76px 84px 1fr; gap: 8px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease; font-size: 13px;
+  min-width: 0;
+}
+.coach-item:hover { background: var(--accent-soft); }
+.coach-item.sel { border-color: var(--accent); background: var(--accent-soft); }
+.rank-badge {
+  width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: var(--accent-contrast);
+}
+.rank-1 { background: var(--accent); opacity: .95; } .rank-2 { background: var(--accent); opacity: .75; }
+.rank-3 { background: var(--accent); opacity: .55; } .rank-4 { background: var(--accent); opacity: .35; }
+.rank-5 { background: var(--accent); opacity: .2; }
+.coach-coord { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.coach-wr { width: 76px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.coach-sl { width: 84px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.coach-visits { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.coach-foot { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+
+/* ============ 首启引导（§5.1） ============ */
+.welcome-wrap { min-height: calc(100vh - 56px); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.welcome { width: min(560px, 100%); padding: 28px; }
+.welcome h1 { font-family: var(--font-title); font-size: 24px; font-weight: 600; margin-bottom: 6px; }  /* §4.3：24=页面标题 */
+.welcome .sub { color: var(--text-2); font-size: 13px; margin-bottom: 18px; }
+.welcome-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+.wstep { display: flex; align-items: flex-start; gap: 12px; }
+.wstep .no {
+  width: 26px; height: 26px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--accent-contrast); font-size: 13px; font-weight: 700;
+}
+.wstep .body { flex: 1; }
+.wstep .tt { font-size: 14px; font-weight: 600; }
+.wstep .dd { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+.model-check { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.mrow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.mrow .ok { color: var(--eng-idle); font-weight: 700; }
+.mrow .no { color: var(--c-blunder); font-weight: 700; }
+.progress { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; margin-top: 8px; }
+.progress .bar { height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.progress .bar.warn { background: var(--eng-init); }
+.welcome .foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.blocked-note { background: rgba(214,69,69,.10); border: 1px solid rgba(214,69,69,.35); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--c-blunder); margin-top: 12px; }
+
+/* ============ 创建对局弹层（§5.3） ============ */
+.wizard-steps { display: flex; gap: 8px; margin-bottom: 16px; }
+/* 创建对局＝压在当前页面上的覆盖层（2026/10/21 人工反馈）：
+ * 背景页保持挂载并被模糊，而非先卸载页面再显示向导；取消只收遮罩，零重排抖动。 */
+.dialog-mask.create-wizard {
+  background: rgba(0, 0, 0, .28);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05);
+}
+.wstep-tab { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-3); }
+.wstep-tab .no { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--border-strong); color: var(--text-2); }
+.wstep-tab.on { color: var(--accent); }
+.wstep-tab.on .no { background: var(--accent); color: var(--accent-contrast); }
+.wizard-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; gap: 10px; }
+.wizard-foot .hint { font-size: 12px; color: var(--text-3); }
+.create-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.preview-mini { display: flex; gap: 12px; align-items: center; }
+/* 棋盘预览（人工反馈：加棋盘线，配深/浅主题实际棋盘色） */
+.preview-mini .tiny-board { width: 56px; height: 56px; border-radius: 6px; background: var(--board-bg); flex: none; box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
+.preview-mini .tiny-board svg { width: 100%; height: 100%; display: block; }
+
+/* ============ 终局结算（§5.4） ============ */
+.scoring-steps { display: flex; flex-direction: column; gap: 14px; }
+.dead-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.result-hero { text-align: center; padding: 14px 0 4px; }
+.result-hero .big { font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums; }  /* §4.3：48=结算结果大字 */
+.result-hero .big small { font-size: 16px; font-weight: 500; color: var(--text-2); }
+.result-hero .sub { margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.result-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+.result-grid .item { background: var(--bg-glass-strong); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+.result-grid .label { font-size: 12px; color: var(--text-2); }
+.result-grid .value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.follow-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* ============ 复盘·棋谱列表（§5.5.1） ============ */
+.filterbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.filterbar .search { flex: 1; min-width: 180px; max-width: 320px; }
+.game-list-wrap { display: flex; gap: 20px; align-items: flex-start; min-width: 0; }
+.game-list { flex: 3; min-width: 0; }
+.game-preview { flex: 2; min-width: 0; position: sticky; top: 76px; }
+/* 列表项：恒为两行——行1=徽章+标题+操作，行2=meta 三列定宽（人工反馈 02-27-19 / 02-33-01） */
+.game-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-glass); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+.game-item + .game-item { margin-top: 8px; }
+.game-item:hover { border-color: var(--accent); }
+.game-item .g-main { flex: 1; min-width: 0; order: 0; }
+.game-item .g-title { font-size: 14px; font-weight: 600; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.game-item .g-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+/* 列表 meta：第二行三列定宽对齐（人工反馈：上下需对齐） */
+.game-item .g-meta { order: 2; width: 100%; display: flex; align-items: center; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.game-item .g-meta .m-size { width: 96px; flex: none; }
+.game-item .g-meta .m-result { width: 150px; flex: none; }
+.game-item .g-meta .m-time { width: 80px; flex: none; }
+.game-item .g-actions { display: flex; gap: 6px; align-items: center; flex: none; order: 1; margin-left: auto; }
+/* 预览卡重排：标题右侧对局信息行右对齐；删除 kv；按钮右对齐（人工反馈 02-34-40 / 02-43-23） */
+.preview-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.preview-head h3 { margin-bottom: 0; flex: 1; min-width: 0; }
+.preview-head .preview-info { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.preview-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+/* 人工反馈：主操作（收藏 / 回放 / 续弈）常显；次操作（导出 / 删除）hover 显现；移动端 ··· 菜单 */
+@media (min-width: 768px) {
+  .game-item .g-actions .btn-ghost:not(.menu-more) { opacity: 0; transition: opacity .15s ease; }
+  .game-item:hover .g-actions .btn-ghost:not(.menu-more),
+  .game-item:focus-within .g-actions .btn-ghost:not(.menu-more) { opacity: 1; }
+}
+@media (max-width: 767px) {
+  .game-item .g-actions .btn-ghost:not(.menu-more) { display: none; }  /* 次操作收进 ··· 菜单；menu-more 本身除外 */
+}
+.fav-btn { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); transition: color .15s ease, background-color .15s ease; }
+.fav-btn:hover { color: var(--c-blunder); }
+.fav-btn.on { color: #E05252; }
+.pager { display: flex; gap: 6px; justify-content: center; margin-top: 16px; align-items: center; }
+.pager button { min-width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+.pager button:hover:not(.on):not([disabled]) { border-color: var(--accent); color: var(--accent); }
+.pager button.on { background: var(--accent); color: var(--accent-contrast); border-color: transparent; }
+.pager button[disabled] { opacity: .4; cursor: not-allowed; }
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text-2); }
+/* 空态插画（§4.7 空态＝SVG 插画 + 一句话 + CTA）：尺寸 4:3 与 `#i-empty-go` 画布一致，
+   display:block 才能 margin auto 居中（inline 级元素 margin 不生效） */
+.empty-state .art { display: block; width: 120px; height: 90px; margin: 0 auto 12px; opacity: .55; }
+.empty-state .t { font-size: 15px; color: var(--text-1); margin-bottom: 4px; }
+
+/* ============ 回放工作台（§5.5.2） ============ */
+.track { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.track .move-label {
+  font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2);
+  cursor: pointer; user-select: none; -webkit-user-select: none;  /* 播放手数标签：手形可点（产品） */
+}
+.track .range { flex: 1; }
+.track-btn { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); flex: none; }
+.track-btn:hover { border-color: var(--accent); color: var(--accent); }
+.track-autop { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.trial-tag { position: absolute; top: 10px; right: 12px; }
+
+/* ============ 报告（§5.5.4，人工反馈：直接弹层，不单独路由） ============ */
+/* 头部（2026/09/15 人工反馈）：宽屏单行＝[标题 🚩 链精度徽章] [对局信息] [视角] [✕(右上角)]；
+   放不下按优先级换行（PC/移动端通用口径）：**视角 → 信息行 → 标题+徽章（恒首行）**。
+   PC 不做 `…` 省略：信息行整体换行，落行后仍不足才在其内部折行（不裁切）；
+   移动端三行 + `…`（见 ≤767）。
+   实现：flex-wrap 自然换行（末项「视角」先落行；标题组 flex:none 不压缩）+ [✕] 绝对定位（不参与换行）。 */
+.report-head {
+  position: relative;
+  display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+  flex-wrap: wrap;
+  padding-right: 44px;   /* [✕] 车道：绝对定位按钮不占内容宽、也不与内容重叠 */
+}
+.report-head .ttl { font-family: var(--font-title); font-size: 20px; font-weight: 600; }
+/* 标题组不参与收缩：否则窄窗口挤压缩导致「对局报 告」折行/徽章折行（2026/09/15 错乱截图根因） */
+.report-head .ttl-group { flex: none; }
+.report-head .ttl-group .badge { white-space: nowrap; }  /* 链精度徽章「500 Visit」不折行 */
+/* 对局信息：基尺寸=max-content（放不下整体换行）；落行后允许收缩→文本内部折行（PC 不省略不裁切） */
+.report-head .info-meta { flex: 0 1 auto; min-width: 0; display: block; }
+.report-head .info-meta .sep { margin: 0 6px; }  /* 块内为内联流，不享受 flex gap */
+/* [✕]：恒在首行右上角（与标题同行；不参与换行） */
+.report-head .report-close { position: absolute; top: 1px; right: 0; }
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* 最后一张（奇数）胜负手卡片＝双列卡片宽（跨两列，§5.5.4） */
+.report-grid .card.full { grid-column: 1 / -1; }
+/* 对局报告弹层：PC/平板双列（卡片宽≈双列宽），移动端单列限宽 488px */
+.report-modal { display: none; }
+.report-modal.open { display: flex; }
+.report-modal .dialog.report-dialog { width: min(1040px, calc(100vw - 40px)); max-height: 88vh; padding: 22px 24px; scrollbar-width: none; -ms-overflow-style: none; }  /* 人工反馈：隐藏垂直滚动条 */
+.report-modal .dialog.report-dialog::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.report-modal .report-grid { grid-template-columns: 1fr 1fr; }  /* 人工反馈：同排卡片等高（默认 stretch） */
+.report-modal .report-grid .card { display: flex; flex-direction: column; }
+.report-modal .report-grid .card.full { width: 100%; }
+/* 平均目数损失卡底部：总手数 / 目数损失（人工反馈，与落子质量卡等高） */
+.avg-loss-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; padding-top: 14px; }
+.avg-loss-foot .item { background: var(--bg-glass-strong); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; text-align: center; }
+.avg-loss-foot .label { display: block; font-size: 12px; color: var(--text-2); }
+.avg-loss-foot .val { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ring-track { fill: none; stroke: var(--border); stroke-width: 8; }
+.ring-val { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 204 352; transform: rotate(-90deg); transform-origin: 56px 56px; }  /* r=56：外缘 60 不越 viewBox；58%×C(56)=204 */
+/* 棋力评估：毛笔墨刷徽章（人工反馈：墨笔刷底 + 纸色文字） */
+.level-badge {
+  position: relative;
+  width: 100%; max-width: 330px; height: 128px;
+  margin: 0 auto 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+}
+.level-badge .brush { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% + 20px); height: calc(100% + 12px); pointer-events: none; }
+.level-badge .brush path { filter: drop-shadow(0 4px 10px rgba(0,0,0,.22)); }
+.level-badge .lv, .level-badge .sub { position: relative; z-index: 1; }
+.level-badge .lv { font-family: var(--font-title); font-size: 24px; font-weight: 700; letter-spacing: 2px; color: var(--brush-text); }
+.level-badge .sub { font-size: 12px; color: var(--brush-text); opacity: .82; }
+.report-center { text-align: center; }
+/* T6.9 弹层补充（产品版）：头右操作区 / 居中卡标题 / 骨架 / 空态 */
+.report-head-ops { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-head-ops .report-ops-label { font-size: 12px; }
+.report-head-ops .report-ai-note { font-size: 12px; }
+.report-center h3 { justify-content: center; }
+.report-skeleton .card .skeleton { height: 120px; }
+.report-skeleton .card .skeleton + .skeleton { margin-top: 12px; }
+.report-skeleton .card.full .skeleton { height: 92px; }
+/* 视角切换保留式加载（2026/09/13）：既有网格原地保留 + 忙碌遮罩，不换骨架 → 不塌缩（BUG-051） */
+.report-dialog.report-soft-loading .report-grid { position: relative; pointer-events: none; }
+.report-dialog.report-soft-loading .report-grid > * { opacity: .45; transition: opacity .15s ease; }
+.report-dialog.report-soft-loading .report-grid::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+  margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+.report-empty { padding: 36px 20px 28px; text-align: center; }
+.report-empty > .icon { width: 38px; height: 38px; color: var(--text-3); }
+.report-empty-title { font-size: 16px; font-weight: 600; margin: 12px 0 6px; }
+.report-empty-msg { color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.report-empty-actions { justify-content: center; }
+.ring { width: 120px; height: 120px; margin: 0 auto 8px; }
+.ring svg { width: 100%; height: 100%; }
+.ring-num { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.quality-bar { display: flex; flex-direction: column; gap: 8px; }
+.qrow { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+/* 定宽列（左右两侧）收窄以加长柱状条（2026/09/15 人工反馈：两侧距文本还有余量；
+   96/92 → 76/56 → 66/40；实测最坏文本：`妙着 100`＝60px、`100%`＝32px） */
+.qrow .qname { width: 66px; flex: none; white-space: nowrap; }
+.qrow .qname b { margin-left: 6px; font-weight: 600; }
+.qrow .qbar { flex: 1; height: 14px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.qrow .qbar i { display: block; height: 100%; border-radius: 999px; }
+.qrow .qnum { width: 40px; text-align: right; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-brilliant { background: var(--c-brilliant); } .q-good { background: var(--c-good); }
+.q-slow { background: var(--c-slow); } .q-mistake { background: var(--c-mistake); } .q-blunder { background: var(--c-blunder); }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); margin-top: 8px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 4px; vertical-align: -1px; }
+.turn-points { display: flex; flex-direction: column; gap: 8px; }
+.tp-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-glass-strong); border: 1px solid var(--border); font-size: 13px; }
+.tp-item .tp-tag { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+/* 定宽列：上下条目按 手数/行棋方/ΔW/ΔS/点评语 对齐（数值列右对齐 + tabular-nums）；
+   ΔW/ΔS 列宽按最坏取值实测（13px 字号：ΔW −100.0% = 78px、ΔS −361.2 目 = 77px，含余量） */
+.tp-item .tp-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 4.8em 4.6em 6.4em 6.4em minmax(0, 1fr); column-gap: 0.7em; align-items: baseline; }
+.tp-item .tp-c { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-item .tp-move { font-weight: 600; }
+.tp-item .tp-dw, .tp-item .tp-ds { display: flex; align-items: baseline; justify-content: space-between; gap: 0.35em; }
+.tp-item .tp-dw .v, .tp-item .tp-ds .v { text-align: right; }
+.tp-item .btn { margin-left: auto; }
+@media (max-width: 767px) {
+  /* 移动端：数值列换行到第二行（占满宽度）；隐藏「行棋方」列（整份报告内恒为视角方，无语义损失），
+     换取 ΔW/ΔS 列容纳三位有效数字（12px 字号：ΔW −100.0% = 72px、ΔS −361.2 目 = 71px） */
+  .tp-item { flex-wrap: wrap; row-gap: 6px; }
+  .tp-item .tp-tag { order: 1; }
+  .tp-item .btn { order: 2; margin-left: auto; }
+  .tp-item .tp-side { display: none; }
+  .tp-item .tp-main { order: 3; flex: 1 1 100%; font-size: 12px; grid-template-columns: 4.4em 6.3em 6.3em minmax(2em, 1fr); column-gap: 0.5em; }
+}
+.scale-line { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.scale-line .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+.scale-line .bar { height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--c-good), var(--c-slow), var(--c-mistake), var(--c-blunder)); position: relative; }
+.scale-line .bar i { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--text-1); }
+
+/* ============ 管理视图（§5.6） ============
+   人工反馈：不同模块按卡片平铺排列，卡片最大宽度 488px（原 span3 达 690px 超限） */
+.admin-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; justify-content: center; /* 人工反馈：卡片布局居中 */ }
+.admin-grid > .card { flex: 0 1 488px; max-width: 488px; }  /* 人工反馈：每行最多 2 列 */
+.admin-header { display: flex; flex-direction: column; }
+.eng-status { display: flex; align-items: center; gap: 16px; }
+.eng-ico { width: 64px; height: 64px; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--bg-glass-strong); flex: none; }
+.eng-ico svg { width: 34px; height: 34px; }
+.eng-state { font-size: 16px; font-weight: 600; }
+.eng-state small { display: block; font-size: 12px; font-weight: 400; color: var(--text-2); }
+.eng-ops { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.param-group { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 12px; background: var(--bg-glass-strong); }
+.param-group > h4 { font-size: 13px; color: var(--text-1); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+/* 警告级提示（参数卡引擎级说明 / 版本与资源卡安装提示共用同一语义色） */
+.admin-grid .warn-tag { font-size: 12px; color: #8A6700; }
+html[data-theme="dark"] .admin-grid .warn-tag { color: #E0B53B; }
+.param-group .warn-tag { margin-top: 6px; }
+.mem-bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; margin-top: 6px; }
+.mem-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+
+
+/* ============ 响应式（§6.7 断点 / §5.2.1 布局分级） ============ */
+
+/* 平板 768–1199px：棋盘居中（≤85vw）+ 侧栏为右侧抽屉（默认收起） */
+@media (max-width: 1199px) {
+  /* 胜率条：侧栏变抽屉时即显示（人工反馈 02-46-08：单行居中进度条样式） */
+  .wr-bar {
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+    width: 100%; max-width: 480px; margin: 0 auto 10px; justify-items: center;
+  }
+  .wr-bar .wr-label { min-width: 52px; text-align: center; }
+  .wr-bar .wr-track { min-width: 60px; }
+  /* 管理页：flex 自动换行（卡片 ≤488px，平板 2 列 / 窄屏 1 列） */
+  .game { flex-direction: column; }
+  .board-zone { width: 100%; max-width: 85vw; margin: 0 auto; }
+  .sidebar { display: none; }
+}
+
+/* 手机 <768px：垂直 状态条→棋盘(100vw)→底部；侧栏=底部抽屉(75vh)；预览=抽屉（§5.5.1） */
+@media (max-width: 767px) {
+  .game-preview { display: none; }
+  .game-list-wrap { flex-direction: column; align-items: stretch; }  /* align-items:stretch＝移动单列防 390px 横滚（产品） */
+  .layout { padding: 12px; }
+  .topbar { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; align-items: center; }
+  .topbar .brand .brand-logo { height: 26px; }
+  .topbar .icon-btn { width: 44px; height: 44px; }  /* §6.7 触控目标 ≥44px */
+  .topbar .row1 { display: flex; align-items: center; width: 100%; gap: 10px; }
+  .topbar .row2 { display: flex; align-items: center; width: 100%; gap: 6px; }
+  .topbar nav.main { flex: 1; overflow-x: auto; }
+  .topbar .row2 .btn-primary { margin-left: auto; }
+  .menu-more { display: inline-flex; margin-left: auto; }
+  .board-zone { max-width: 100vw; }
+  .board-wrap { max-height: none; }
+  .info-actions { display: none; }
+  /* 人工反馈：移动端底部按钮大小不变、右对齐（不放大铺满） */
+  .bottom-actions { margin-left: auto; width: auto; justify-content: flex-end; flex-wrap: wrap; }  /* flex-wrap＝底部按钮允许换行（产品） */
+  .create-grid { grid-template-columns: 1fr; }
+  .result-grid { grid-template-columns: repeat(2, 1fr); }
+  /* 报告头部（2026/09/15 人工反馈）：行1=[标题 🚩 链精度徽章 | ✕]（✕ 恒在右上角、与标题同行）；
+     行2=对局信息（始终在标题行下一行；移动端保留 `…` 省略——PC 不省略口径见基块）；
+     行3=视角切换（右对齐，沿用既有视觉）。标题组 shrink-wrap（弹层锚点依赖其宽度）。 */
+  .report-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding-right: 0;
+  }
+  .report-head .ttl-group { grid-area: 1 / 1; min-width: 0; justify-self: start; }
+  .report-head .report-close { position: static; grid-area: 1 / 2; }
+  .report-head .info-meta {
+    grid-area: 2 / 1 / 3 / 3;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .report-head .report-head-ops { grid-area: 3 / 1 / 4 / 3; justify-self: end; }
+  .dialog { padding: 18px; }
+  /* 人工反馈：移动端单列时 创建对局/对局报告 弹层卡片宽度最大 488px */
+  .dialog.wide { width: min(488px, calc(100vw - 40px)); }
+  .report-modal .dialog.report-dialog { width: min(488px, calc(100vw - 40px)); padding: 18px; }
+  .report-modal .report-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 768px) {
+  .menu-more { display: none; }
+}
+
+@media (max-width: 767px) {
+  .game-item { flex-wrap: wrap; }
+  .game-item .g-main { width: auto; flex: 1 1 auto; }
+  /* 行1=徽章+标题+操作（右侧），行2=meta（对齐；人工反馈 02-33-01） */
+  .game-item .g-actions { width: auto; margin-left: auto; }
+}
+
+/* ============ 按钮 Hover 墨晕（§4.1：径向渐变由中心扩散） ============ */
+.btn-primary, .segctl button.on, .chip.on {
+  position: relative; isolation: isolate; overflow: hidden;
+}
+.btn-primary::after, .segctl button.on::after, .chip.on::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.22), transparent 62%);
+  transition: opacity .15s ease;
+}
+.btn-primary:hover::after, .segctl button.on:hover::after, .chip.on:hover::after { opacity: 1; }
+
+/* ============ Tooltip（§4.6 / §6.5：悬停 300ms 显示；全局唯一浮层 = 主题玻璃气泡 + 小箭头）
+ * 单例 DOM 由 js/tooltip.js 注入 body（.tgo-tip，fixed 定位 + 视口钳制 + 顶栏避让翻转），
+ * 浅/深主题与主题色经 token 自动适配；锚点元素只需持有 [data-tip] 数据，不参与渲染。
+ * （2026/09/15：取代旧 [data-tip]::before/::after 伪元素方案——不再受 overflow 裁剪 /
+ *   backdrop-filter 层叠上下文影响，也无需 topbar 变体与逐元素右锚定补丁。） ============ */
+.tgo-tip {
+  position: fixed; z-index: 990; left: 0; top: 0;   /* 初始位由 JS 显示前即时校正 */
+  max-width: 300px; padding: 6px 11px; border-radius: 10px;
+  background: var(--bg-glass-strong);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-1);
+  font-size: 12px; line-height: 1.55; font-weight: 500;
+  text-align: center; white-space: normal; overflow-wrap: break-word;
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  opacity: 0; transform: translateY(3px);
+  transition: opacity .15s var(--ease), transform .15s var(--ease);
+}
+.tgo-tip.below { transform: translateY(-3px); }
+.tgo-tip.on { opacity: 1; transform: translateY(0); }
+.tgo-tip-arrow {
+  position: absolute; width: 10px; height: 10px;
+  background: var(--bg-glass-strong);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* 气泡在上：箭头贴底、指向下（保留外侧右/下描边）；气泡在下：箭头贴顶、指向上（保留上/左描边） */
+.tgo-tip:not(.below) .tgo-tip-arrow { bottom: -5px; border-top: 0; border-left: 0; border-radius: 0 0 2px 0; }
+.tgo-tip.below .tgo-tip-arrow { top: -5px; border-right: 0; border-bottom: 0; border-radius: 2px 0 0 0; }
+
+/* ============ 减弱动效（§4.4 / WIG：prefers-reduced-motion） ============ */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0ms !important; transition-duration: 0ms !important; }
+  .breathe { animation: none !important; }
+  .think-capsule .t-dot { animation: none !important; opacity: 1; }
+  .dot.s-init, .dot.s-tune, .dot.s-busy { animation: none !important; opacity: 1; }
+  .dot.s-init::after, .dot.s-tune::after, .dot.s-busy::after { animation: none !important; display: none; }
+}
+
+
+/* ============================================================================
+ * ========================= Part Ⅱ · 产品差异与新增 =========================
+ * 原 app.css 产品规则（基线已并入 Part Ⅰ；与基线同选择器的声明已折叠至 Part Ⅰ，
+ * 此处不再重复定义）。本部分规则必须位于 Part Ⅰ 之后——其中含对基线响应式
+ * （如 ≤1199 .sidebar/.board-zone）的同权重覆盖，顺序不可提前。
+ * ========================================================================== */
+
+/* 占位面板（Phase 5 门禁期临时，Phase 6 逐视图替换后删除相关规则） */
+.ph {
+  min-height: 42vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 0;
+}
+.ph .card {
+  max-width: 520px;
+  width: 100%;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.ph .card .icon { width: 42px; height: 42px; color: var(--accent); flex: none; }
+.ph h2 { font-size: 18px; margin: 0; }
+.ph p { color: var(--text-2); font-size: 13px; line-height: 1.8; margin: 0; max-width: 420px; }
+.ph .ph-note { color: var(--text-3); font-size: 12px; }
+.ph .btn { margin-top: 6px; }
+
+/* ============================================================================
+ * T5.4 全局 UI 设施补充样式（Token 均来自 Part Ⅰ 基线；.toast 同选择器声明已折叠入 Part Ⅰ）
+ * ========================================================================== */
+
+/* ---- Toast 堆叠容器（C15：堆叠 ≤3、玻璃气泡、点击关闭、error→alert 语义；视觉样式见 Part Ⅰ .toast）
+ * 默认回退＝顶栏下方居中（无棋盘页：棋局列表/管理/引导）；棋盘页（对弈/复盘）由
+ * toast.js 动态改为「棋盘正上方」：底边贴棋盘上缘、水平对齐棋盘中心（视口内钳制），
+ * 堆叠向上生长（新条最贴棋盘）。 ---- */
+.toast-root {
+  position: fixed; top: 76px; left: 50%; transform: translateX(-50%);
+  z-index: 200; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: min(92vw, 420px); pointer-events: none;
+}
+
+/* ---- 顶部横幅（重连/引擎降级，BANNER） ---- */
+.banner-root {
+  position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+  z-index: 190; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: min(94vw, 760px); pointer-events: none;
+}
+.banner {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--bg-glass-strong); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card);
+  font-size: 13px; color: var(--text-1);
+}
+.banner-text { flex: 1; min-width: 0; }
+.banner-actions { display: inline-flex; gap: 8px; flex: none; align-items: center; }
+.banner .btn { flex: none; }
+.banner-close { flex: none; width: 32px; height: 32px; }
+.banner.tone-warn  { border-color: var(--eng-init); }
+.banner.tone-error { border-color: var(--eng-dead); }
+
+/* ============================================================================
+ * T6.2 首启引导（Onboarding 门禁）补充样式
+ * 说明：.welcome* / .wstep / .model-check / .progress 等基线与首启门禁见 Part Ⅰ「首启引导」；
+ * 此处只补产品壳差异（门禁隐藏导航行）与不确定度进度条动效。
+ * ========================================================================== */
+
+/* 首启门禁：顶栏仅保留 row1（品牌/引擎胶囊/静音/主题），隐藏导航与 [+创建对局] */
+body.tgo-onboarding .topbar .row2 { display: none; }
+
+/* 欢迎卡标题＝ title.svg 品牌标志（替换原文字标题；深色选切 title-dark.svg，同顶栏品牌口径）。
+   标题间距沿用基线 `.welcome h1 { margin-bottom: 6px }`。2026/09/18 人工反馈 */
+.welcome-title {
+  width: 119px; height: 34px;
+  background: url("../title.svg") left center / contain no-repeat;
+}
+html[data-theme="dark"] .welcome-title { background-image: url("../title-dark.svg"); }
+
+/* 引擎加载中（非 benchmark）不确定进度条：30% 宽度往复游移 */
+.progress .bar.indet {
+  width: 30%;
+  animation: tgoIndet 1.4s ease-in-out infinite;
+}
+@keyframes tgoIndet {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(340%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress .bar.indet { animation: none; transform: none; }
+}
+
+/* ============================================================================
+ * T6.3 创建对局向导（C8 全局弹层）补充样式
+ * .dialog-mask/.dialog.wide/.segctl/.switch/.range/.preview-mini 等基线见 Part Ⅰ；
+ * 此处只补向导内新增结构（档案联想下拉、role=switch 按钮化开关）。
+ * ========================================================================== */
+
+/* 玩家档案联想下拉（输入行下方浮层，玻璃卡片同体系） */
+.suggest-wrap { position: relative; }
+.suggest-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30;
+  margin: 0; padding: 4px; list-style: none; max-height: 176px; overflow: auto;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg-glass-strong); backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: var(--shadow-card); font-size: 13px;
+}
+.suggest-item {
+  display: block; width: 100%; text-align: left; padding: 7px 10px; border: 0;
+  background: transparent; color: var(--text-1); border-radius: 7px; cursor: pointer;
+}
+.suggest-item:hover, .suggest-item:focus-visible { background: var(--accent-soft); color: var(--text-1); outline: none; }
+
+/* role=switch 的按钮化 .switch（基线 .switch 面向静态 span，需清除按钮默认） */
+.create-wizard button.switch { padding: 0; border: 0; font: inherit; -webkit-appearance: none; appearance: none; }
+.create-wizard button.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.create-wizard .hint { margin-top: 3px; }
+
+/* T6.3 人工反馈修订：联动不可用 = 灰置不隐藏；高度稳定（防弹窗跳动） */
+.create-wizard .segctl button:disabled,
+.create-wizard .field.is-disabled .input,
+.create-wizard .field.is-disabled .select,
+.create-wizard input:disabled,
+.create-wizard select:disabled,
+.create-wizard input[type="range"]:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.create-wizard .field.is-disabled .hint { opacity: .7; }
+.create-wizard [data-quick-hint].is-disabled { opacity: .55; }
+/* 让子提示行：常驻一行，选让子时高亮（不增删行避免弹窗高度跳动） */
+.create-wizard [data-komi-warn] { color: var(--text-3); }
+.create-wizard [data-komi-warn].on { color: var(--eng-init); font-weight: 600; }
+/* 表单校验内联错误：字号与其他提示一致；空态不占位（引擎不可用提示已改 Toast，不再预留行高） */
+.create-wizard [data-form-error] {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-blunder);
+  margin-top: 0;
+}
+.create-wizard [data-form-error]:not(:empty) { margin-top: 10px; }
+
+/* 创建向导：隐藏对话窗垂直滚动条（人工口径 2026/09/15）——档案联想下拉为绝对定位，
+   展开时会撑出对话窗的可滚动溢出（实测白方输入框展开下拉 → 17px 滚动条）；滚动能力保留，
+   仅隐藏滚动条（与侧栏/抽屉/列表同口径），不因开出下拉而抖动宽度。 */
+.create-wizard .dialog {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.create-wizard .dialog::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* ---- 引擎胶囊详情浮层（C3，UI_UX §6.1） ---- */
+#engine-pill { position: relative; }
+.eng-detail {
+  position: fixed; z-index: 210; min-width: 190px; max-width: 300px;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--bg-glass-strong); backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card);
+  color: var(--text-1); font-size: 12px; line-height: 1.7;
+}
+.eng-detail ul { margin: 0; padding: 0; list-style: none; }
+.eng-detail li { display: flex; gap: 6px; }
+.eng-detail li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--accent); }
+
+/* ---- 沉浸模式（2026/09/08 人工澄清：顶栏全隐、不保留引擎胶囊——引擎异常按既有横幅/警示呈现；
+ *      棋盘全屏居中：列对齐顶栏最大宽度 .layout（1440）居中，并在可行区内水平垂直居中；
+ *      沉浸时放开对弈区 1080 上限使棋盘可在高度预算内放大；退出=右上浮钮 / ESC）
+ *      2026/09/13 页面视图改造：主区恒满视口，棋盘由 flex 自适应；旧的 100vh 预算 max-height 取消。
+ *      2026/09/21 人工决策：棋盘下方**保留一行**——左[提子计数器] 右[PASS][悔棋]，
+ *      该行恒贴棋盘下方、与棋盘作为整体垂直居中（棋盘上方与底行下方均分富余空间）。 ---- */
+body.immersive .topbar,
+body.immersive .sidebar,
+body.immersive .info-row,
+body.immersive .drawer-root { display: none !important; }
+body.immersive .layout {
+  padding: 8px;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+/* 覆盖 .layout.game .board-zone{max-width:1080px}（沉浸放开；仍受 .layout 1440 约束） */
+body.immersive .layout .board-zone {
+  width: 100%;
+  max-width: none;
+  margin-inline: auto;
+}
+/* 棋盘与底行成组居中：board-wrap 只保留下侧 0 + 上侧 auto，底行承担下侧 auto
+   ⇒ 富余空间（如手机竖屏）由「棋盘上方」与「底行下方」均分，行与棋盘间恒为 .bottom-row
+   的 margin-top（12px），绝不出现大空隙。 */
+body.immersive .board-wrap { max-height: none; margin-block: auto 0; }
+body.immersive .bottom-row { margin-bottom: auto; }
+/* 底行仅留 提子计数器 + [PASS][悔棋]（2026/09/21 人工决策）：
+   [支招] 结果展示在侧栏/分析抽屉——二者沉浸下均隐藏（点了看不到结果）；
+   [领地] 同批隐藏；移动端黑白胜率条为整行网格（width:100%），保留会把底行撑成两行。 */
+body.immersive .bottom-row .wr-bar,
+body.immersive .bottom-row .bottom-actions .btn[data-act="coach"],
+body.immersive .bottom-row .bottom-actions .btn[data-act="territory"] { display: none !important; }
+/* 结算/终局底行隐藏（renderTerminal 加 u-hide）→ 无底行吸收下侧空隙，棋盘恢复对称居中 */
+body.immersive .board-zone:has(> .bottom-row.u-hide) .board-wrap { margin-bottom: auto; }
+.immersive-exit {
+  position: fixed; right: 12px; top: 12px; z-index: 220;
+  /* 刘海/圆角屏安全区（不支持 env 的浏览器保持上面的 12px 兜底） */
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  background: var(--bg-glass-strong) !important;
+}
+
+/* ============================================================================
+ * T5.5 双层 Canvas 棋盘补充样式（GameBoard；2026/09/17 性能修订）
+ * 说明：.board-wrap 容器（木纹底/圆角/阴影）见 Part Ⅰ「对弈布局·棋盘」；此处只
+ * 负责棋盘自建的（静态/状态）两层画布与键盘焦点面的叠放规则。
+ * ========================================================================== */
+
+/* 双层画布（.board-wrap 容器仍按 Part Ⅰ 基线布局：宽 100% + aspect-ratio:1 + 高度预算
+ * ——矮/宽窗口下容器会被钳成矩形）。
+ *
+ * 2026/09/22（方案 B 人工决策）：**静态层不再是正方形**，而是**木料面**——铺满容器
+ * 整幅（含棋盘两侧留白），由 board.js 按 (容器尺寸 × zoom) 栅格化并随棋盘一同缩放/平移；
+ * 棋盘（网格/星位/坐标）画在该面中央的正方形区域内，状态层（棋子/叠加标记）仍为正方形。
+ * 因此：
+ *   - .tgo-layer 的下面这组规则只作**状态层**的 CSS 基线（正方形居中；容器为矩形时
+ *     内容不被非等比拉伸）；
+ *   - 两层实际尺寸/位置均由 board.js 内联样式接管（含缩放后大于容器、被 overflow 裁剪）；
+ *   - 静态层铺满容器后**不得参与命中**（交互面恒为状态画布，见 .tgo-state）。 */
+.tgo-layer {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  /* 消除移动端双击缩放延迟与长按菜单（UI_UX §6.7） */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 交互面为最上层状态画布（原动态层已并入）；touch-action:none＝接管双指捏合（棋盘缩放，不放大页面其它元素） */
+.tgo-state   { z-index: 1; touch-action: none; }
+/* 静态层（木料面）为纯背景：铺满容器但不抢命中/hover（与改动前“留白区命中容器”一致） */
+.tgo-static  { z-index: 0; pointer-events: none; }
+
+/* 键盘焦点面：透明铺满、不拦截指针；读屏/键盘入口（UI_UX §6.8） */
+.tgo-board-focus {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 8px;
+  outline: none;
+}
+.tgo-board-focus:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 引擎 DEAD：整板降饱和（Part Ⅰ .board-dead 已定义 saturate(.75)，此处兜底） */
+.board-wrap.board-dead { filter: saturate(0.75); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tgo-layer, .tgo-board-focus { transition: none; }
+}
+
+/* ---- 确认弹层（C15，复用 Part Ⅰ .dialog-mask/.dialog） ---- */
+.dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.dialog-msg { color: var(--text-2); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ---- 减少动态偏好：关闭位移动画（保留透明度渐变） ---- */
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .dialog-mask, .dialog, .topbar, nav.main a, .icon-btn, .btn { transition: none !important; }
+}
+
+/* ============================================================
+ * T6.4 对弈工作台·基础流（GameView）
+ * ============================================================ */
+
+/* 桌面棋盘区上限（UI_UX §5.2.2：side 上限 1080px；T6.5 侧栏未接入时防撑爆） */
+.layout.game .board-zone { max-width: 1080px; }
+
+/* 显隐工具类（覆写 Part Ⅰ 组件 display，如 think-capsule inline-flex / warn-banner flex） */
+.u-hide { display: none !important; }
+
+/* 恢复中/空态居中面板 */
+.center-panel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; min-height: 55vh; color: var(--text-2); width: 100%;
+}
+.center-panel .spin {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 3px solid var(--border-strong); border-top-color: var(--accent);
+  animation: game-spin .9s linear infinite;
+}
+@keyframes game-spin { to { transform: rotate(360deg); } }
+.center-panel .panel-text { font-size: 13px; }
+.center-panel .empty-state .s { font-size: 13px; margin-top: 6px; }
+.center-panel .empty-state .empty-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+
+/* 终局/结算提示桥（T6.6 结算面板替换前使用；覆盖对弈区半透明遮罩） */
+.game-terminal {
+  position: absolute; inset: 0; z-index: 14;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+  backdrop-filter: blur(2px);
+}
+.game-terminal-card {
+  background: var(--bg-glass-strong); border: 1px solid var(--border-strong);
+  border-radius: 14px; padding: 22px 26px; max-width: 440px; width: min(440px, 92%);
+  text-align: center; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: var(--shadow-card);
+}
+.game-terminal-card .term-title { font-size: 17px; font-weight: 600; color: var(--text-1); }
+.game-terminal-card .term-result { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.game-terminal-card .muted { font-size: 12px; }
+.game-terminal-card .term-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+
+/* 移动端 ··· 更多操作菜单（≤767 显示 menu-more，信息行内定位） */
+.info-menu {
+  position: absolute; top: 52px; right: 12px; z-index: 16;
+  display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  background: var(--bg-glass-strong); border: 1px solid var(--border-strong);
+  border-radius: 10px; box-shadow: var(--shadow-card);
+}
+.info-menu .btn { justify-content: flex-start; width: 100%; }
+
+/* ============================================================
+ * T6.5 对弈侧栏与实时分析（GameSidebar / 领地 / 胜率条 / 分析抽屉 dock）
+ * 说明：卡片内容结构沿用 Part Ⅰ（card/kv/player-line/coach-*、chart），此处只补
+ * 产品态样式（灰置、骨架、空态、pending、drawer）。断点：≥768 侧栏双列、
+ * ≤767 实时分析底部抽屉 dock（PROMPTS L517）。
+ * ============================================================ */
+
+/* ---- 内容容器（桌面 aside 与抽屉共用同一节点，随断点迁移） ----
+ * 2026/09/06 人工反馈：卡片最大宽度与基线（侧栏 .sidebar=384px）一致；
+ * 宽度足够时并列两列（info+curve 一行，支招卡单独一行 = 第一行两列之和）。
+ * auto-fit 单轨上限 384、min 320：窄容器退单列；max-width 782 防三列。
+ * 桌面 aside 恒 384 → 恒单列（与基线一致）。 */
+.sidebar-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 384px));
+  gap: 14px;
+  justify-content: center;
+  max-width: 782px;
+  margin: 0 auto;
+}
+.sidebar-cards > [data-card='info'],
+.sidebar-cards > [data-card='curve'] { min-width: 0; }
+.sidebar-cards > [data-card='coach'] { grid-column: 1 / -1; }
+
+/* ---- 支招行：胜率/目差 标签与数值拆分列（2026/09/06 人工反馈：标签跨行上下对齐） ----
+ * 结构 <span.coach-wr><span.ck>胜率</span><span.cv>数值</span></span>：
+ * 标签固定于单元格左侧（同一纵列），数值占满余宽右对齐（同列右缘），
+ * 数值长度不同时标签不再错位。 */
+.sidebar-cards .coach-wr,
+.sidebar-cards .coach-sl {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 6px;
+  min-width: 0;
+}
+.sidebar-cards .coach-wr .ck,
+.sidebar-cards .coach-sl .ck { flex: none; white-space: nowrap; }
+.sidebar-cards .coach-wr .cv,
+.sidebar-cards .coach-sl .cv {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 灰置（引擎不可用/降级） ---- */
+.sidebar-cards .kv.is-grey { opacity: .5; }
+.sidebar-cards .card.is-disabled { opacity: .6; }
+.chart svg.is-grey { opacity: .45; filter: saturate(.6); }
+.wr-bar.is-grey { opacity: .55; }
+.sidebar-cards .info-note { font-size: 12px; margin-top: 8px; }
+
+/* ---- C6 曲线卡：空态说明 / 骨架 / 降级（chart 容器相对定位） ---- */
+.chart-note {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--text-3); text-align: center; padding: 0 10px;
+}
+.chart-skeleton {
+  position: absolute; inset: 0; border-radius: 8px;
+  background: linear-gradient(90deg, var(--bg-glass-strong), var(--bg-glass), var(--bg-glass-strong));
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}
+
+/* ---- C6 曲线交互（2026/09/12 人工确认）：hover 明细气泡 / 最近点高亮 / 首次出现淡入 ----
+ * - 气泡 `.chart-tip` 挂 `.chart`（position:relative）内、不拦截指针；位置由
+ *   core/curve.js attachCurveHover 逐帧写入（左右钳制、上方空间不足改点下方）；
+ * - 最近点高亮（竖线 + 圆点）为 SVG 内 `.cr-hover` 组，颜色随主题（内联 var(--accent)）；
+ * - `cr-enter` 仅空态→有数据首次出现时播放（JS playCurveEnter；reduced-motion 关闭）。 */
+.chart-tip {
+  position: absolute; z-index: 3; pointer-events: none;
+  padding: 4px 9px; border-radius: 8px;
+  background: var(--bg-glass-strong); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
+  font-size: 12px; color: var(--text-1);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 10px)); /* JS 内联覆盖为动态位置 */
+}
+@keyframes cr-enter { from { opacity: 0; } to { opacity: 1; } }
+.chart svg.cr-enter { animation: cr-enter 240ms ease-out; }
+
+/* ---- C7 支招卡：pending / 空态 CTA ---- */
+.coach-pending {
+  display: flex; align-items: center; gap: 8px; color: var(--text-2);
+  font-size: 13px; padding: 4px 2px;
+}
+.coach-spin {
+  flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  animation: game-spin .9s linear infinite;
+}
+.coach-empty { padding: 2px 0; display: flex; flex-direction: column; align-items: flex-start; }
+.coach-empty .btn { margin-top: 8px; }
+
+/* ---- 提子控件 canvas：禁止 flex 行压缩（2026/09/06 人工反馈：部分宽度下缩放致文字发虚） ----
+ * 画布按自绘尺寸显式撑开（style.width 已含 DPR），若被底部行 flex-shrink 压缩，
+ * 浏览器会按 CSS 缩放整张位图 → 固定字号文字发虚。flex:none 使行溢出时换行而非压缩。 */
+.bottom-row .captures,
+.bottom-row .captures canvas { flex: none; }
+
+/* ---- C16 胜率条：无数据占位（≤767 网格内整行居中；≥768 侧栏信息卡呈现） ---- */
+/* 胜率条空态：盒高与加载态一致（2026/09/13 人工反馈：首落子时空态 26.4px→19.2px 导致行高跳动＝闪烁） */
+.wr-bar .wr-empty { grid-column: 1 / -1; text-align: center; padding: 0; font-size: 12px; line-height: 1.6; }
+
+/* ---- 按钮内 SVG 图标「点亮」（U-17 起改口径；2026/09/17 人工决策） ----
+ * 用途：`.is-lit` 仅用于 **[支招] / [深度分析]** 数据到达（保持到数据失效）。
+ *   - `.is-lit`       ＝ 点亮：图标取**金色系**（`--lit-ink`；**主题色实底按钮**如 [深度分析]
+ *                       取 `--lit-ink-on-accent`，与主题 accent 解耦）＋ 图标后方
+ *                       **径向渐变晕影**（中心最亮、外圈渐隐）；
+ *   - `.is-lit-in`    ＝ 到达一次性动效（**仅晕影淡入**；2026/09/18 三改：去除一切作用于
+ *                       图标本体的滤镜/透明度/缩放动效——iOS WebKit 重栅格化会导致图标位移）；
+ *   - 呼吸（[支招]/[深度分析] 分析中）＝ 按钮级 `.breathe`（T6.8 节），不在此处重复定义。
+ * [领地] 开启态由 `.is-on`（整按钮高亮）与**实心图标**表达，见 T6.8 节。
+ * 载体 `.icon-lit` 由 `core/btn-lit.js::ensureIconLitWrap` **幂等包裹**（SVG 元素不支持伪元素，
+ * 晕影必须落在包裹层；按钮 innerHTML 重建后调用方会重放包裹）。
+ * 旧表达已废弃：标签旁 accent 小圆点 `.dot`、主题色填充 `.is-fill`。
+ * 减弱动效环境由上方 `animation-duration: 0ms !important` 直接定格到终态。 */
+/* 点亮＝**仅改色**：图标本体（svg）不得施加滤镜/透明度/缩放动效——iOS WebKit 对 svg
+   的 filter 或图层动画会重栅格化，表现为图标轻微位移（2026/09/18 三次反馈，勿回退）。 */
+.btn .icon { transition: color .24s var(--ease); }
+.btn.is-lit .icon { color: var(--lit-ink); }
+.btn.is-lit.btn-primary .icon { color: var(--lit-ink-on-accent); }
+/* 载体样式与点亮态解耦：载体自视图就绪即**常驻**（每次 sync 幂等重放包裹），点亮瞬间
+   无节点插入/搬移、熄灭后保留（布局零变化）——晕影才能做状态过渡。 */
+.btn .icon-lit {
+  position: relative; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* 晕影＝**状态过渡**（`.is-lit` 控显隐；base 0 ↔ lit 1），熄灭即平滑淡出（2026/09/18 人工反馈）。
+   到达动效（is-lit-in）只是叠加增强：动画终值与 .is-lit 稳态一致 → 动画结束无跳变。
+   全程仅 opacity 且**只落晕影伪元素**——不触图标本体（防 iOS 重栅格化位移）。 */
+.btn .icon-lit::before {
+  content: ''; position: absolute; inset: -50%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, var(--lit-core) 0%, var(--lit-halo) 42%, transparent 70%);
+  opacity: 0;
+  transition: opacity .26s var(--ease);
+}
+.btn.is-lit .icon-lit::before { opacity: 1; }
+/* 到达动效＝晕影淡入（唯一动效）。 */
+@keyframes tgoLitHaloIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.btn.is-lit-in .icon-lit::before { animation: tgoLitHaloIn .48s var(--ease); }
+
+/* ---- 实时分析底部抽屉 dock（≤767 常驻；≥768 桌面侧栏、此抽屉隐藏；PROMPTS L517） ----
+ * dock 无“关闭”态：collapsed=仅剩 grip 条（默认，露出棋盘）；expanded=遮罩+分析卡片。
+ * 收起：grip 轻点/下滑、点遮罩、[✕]、[ESC]；展开：grip 轻点/上滑；绝不关闭。 */
+.drawer-root {
+  position: fixed; inset: 0; z-index: 90;
+  pointer-events: none; /* 抽屉外输入透传（棋盘/操作行仍可操作）；面板与遮罩自身 auto */
+}
+.drawer-mask {
+  position: absolute; inset: 0; pointer-events: auto;
+  background: rgba(12, 14, 18, .42);
+  backdrop-filter: blur(2px);
+  animation: drawerMaskIn .2s ease;
+}
+.drawer-root.collapsed .drawer-mask { display: none; }
+@keyframes drawerMaskIn { from { opacity: 0; } to { opacity: 1; } }
+.game-drawer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  max-height: 74vh;
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border-top: 1px solid var(--border-strong);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, .20);
+  padding: 8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
+  animation: settle-up .26s cubic-bezier(.32, .72, 0, 1);
+}
+.game-drawer.dragging { transition: none; }
+.drawer-root.collapsed .game-drawer { animation: none; }
+/* grip＝顶部小横条（可点/可拖按钮语义） */
+.game-drawer .drawer-grip {
+  flex: none; display: block; width: 44px; height: auto;
+  border: 0; padding: 4px 0 8px; margin-inline: auto; background: none;
+  cursor: grab; touch-action: none;
+  -webkit-appearance: none; appearance: none;
+}
+.game-drawer .drawer-grip::before {
+  content: ""; display: block; width: 44px; height: 4px; border-radius: 999px;
+  background: var(--border-strong);
+}
+.game-drawer.dragging .drawer-grip { cursor: grabbing; }
+.drawer-head { flex: none; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.drawer-title { font-size: 13px; font-weight: 600; color: var(--text-2); flex: 1; }
+.drawer-close { flex: none; }
+.drawer-body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.drawer-body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* 收起＝仅剩 grip 条（默认态）；head/body 隐藏 */
+.drawer-root.collapsed .drawer-head,
+.drawer-root.collapsed .drawer-body { display: none; }
+/* 抽屉内不设左右 padding：保留 .sidebar-cards max-width 782（=2×384+gap14）恰好容纳
+   两列 384px 卡片；水平留白由 max-width+margin:auto 居中承担（2026/09/06 修订） */
+.drawer-body .sidebar-cards { padding: 4px 0 6px; }
+
+/* dock 常驻时给对弈页预留底部空间（棋盘下方操作行可上滚到 dock 之上）；底部按钮允许换行 */
+@media (max-width: 767px) {
+  .layout.game:has(.drawer-root:not(.u-hide)) { padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ≥768 桌面双列侧栏：实时分析底部抽屉不再出现 */
+@media (min-width: 768px) {
+  .drawer-root { display: none !important; }
+}
+
+/* 768–1199：Part Ⅰ 响应式（≤1199 隐藏 .sidebar / 板区单列 / wr-bar 网格）复位为桌面式
+ * 双列侧栏——PROMPTS L517「抽屉断点统一 ≤767」，产品层在此区间恢复侧栏布局。 */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .game { flex-direction: row; }
+  .board-zone { width: auto; max-width: none; margin: 0; }
+  .sidebar { display: flex; }
+  .wr-bar { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-drawer { animation: none; transition: none; }
+  .drawer-mask, .chart-skeleton { animation: none; }
+  .chart svg.cr-enter { animation: none; }
+}
+
+/* ============================================================
+ * T6.6 终局结算面板（scoring-panel.js；视觉基类沿用 Part Ⅰ：
+ *   .card/.scoring-steps/.dead-tools/.result-hero/.result-grid/.kv 等）
+ * ============================================================ */
+/* ---- 结算卡容器（桌面侧栏与移动抽屉共用同一节点随断点迁移）----
+ * 2026/09/06 第二轮反馈：卡宽与桌面一致且**固定 384px，不随屏缩放**——flex 固定轨；
+ * 宽度足够（≥2×384+gap=782）自动两列 384+384（max-width:782 居中防三列）；
+ * 不足则自动换行为单列（每行仍 384）；抽屉 body 窄于卡片时横向滚动（隐藏滚动条）
+ * 查看完整卡；桌面 aside 恒 384 单列。 */
+.scoring-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+  /* 居中由卡片 `margin-inline:auto` 承担（见下）：放得下时居中、放不下时自动退化为
+     左对齐（左缘可达 + 右侧横向滚动）。不可用 `justify-content:center`——内容超宽时
+     它会向两侧均分负溢出，左缘被推出屏幕不可达。 */
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 782px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.scoring-panel > .card {
+  flex: 0 0 384px;
+  width: 384px;
+  max-width: 384px;
+  min-width: 0;
+  /* 2026/09/14 人工反馈（方案 A）：卡片窄于抽屉内容区（能放下）时水平居中；
+     放不下（抽屉内容区 < 384，如 390 视口）时 auto 解析为 0 → 左对齐 + 横向滚动
+     查看右侧（维持「卡宽固定 384 不随屏缩放」）。 */
+  margin-inline: auto;
+}
+/* 数子结果网格：结算面板（桌面内嵌/底部抽屉同一 384px 卡）恒为**一行 4 列**
+   （黑目/白目/贴目/手数）——Part Ⅰ ≤1199 会把 .result-grid 折为 2 列，
+   结算卡宽 384 足够 4 列并排（PROMPTS L522）。 */
+.scoring-panel .result-grid { grid-template-columns: repeat(4, 1fr); }
+
+/* ---- ≤767 底部结算抽屉（T6.6 反馈修订：无遮罩贴底弹出；下滑/点空白不关闭；
+ *     断点 PROMPTS L517：统一 ≤767；≥768 用桌面侧栏内嵌面板）----
+ * pointer-events:none 使抽屉外区域输入透传给棋盘/页面（可上滚把棋盘露到抽屉上缘之外，
+ * 供死子点石标记）；仅右上 [✕]/ESC = 取消结算回对弈（模块内二次确认）。 */
+.settle-drawer-root {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+@media (min-width: 768px) { .settle-drawer-root { display: none !important; } }
+
+.settle-drawer {
+  pointer-events: auto;
+  width: 100%;
+  max-height: 62vh;
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border-top: 1px solid var(--border-strong);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, .2);
+  padding: 8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  animation: settle-up .26s cubic-bezier(.32, .72, 0, 1);
+}
+@keyframes settle-up { from { transform: translateY(108%); } to { transform: translateY(0); } }
+.settle-drawer.dragging { transition: none; }
+/* 一键收起：仅剩头部条（含 grip 供重新展开；露出棋盘）；下滑/点空白不关闭 */
+.settle-drawer.collapsed { max-height: none; }
+.settle-drawer.collapsed .settle-drawer-body { display: none; }
+.settle-drawer-head { flex: none; display: flex; align-items: center; gap: 8px; }
+.settle-drawer-title {
+  flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* grip 为可点/可拖把手（按钮语义）：视觉小横条 + 适当命中区（水平居中同预览/分析抽屉） */
+.settle-drawer .drawer-grip {
+  flex: none; display: block; width: 44px; height: auto;
+  border: 0; padding: 4px 0 10px; margin-inline: auto; background: none;
+  cursor: grab; touch-action: none; -webkit-appearance: none; appearance: none;
+}
+.settle-drawer .drawer-grip::before {
+  content: ""; display: block; width: 44px; height: 4px; border-radius: 999px;
+  background: var(--border-strong);
+}
+.settle-drawer.dragging .drawer-grip { cursor: grabbing; }
+.settle-drawer-body {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  /* 隐藏垂直/横向滚动条（与 T6.5 分析抽屉一致；窄屏横向滚动查看固定 384 卡） */
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.settle-drawer-body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .settle-drawer { animation: none; }
+}
+
+/* —— ① 死子确认 —— */
+.scoring-panel .step-line {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-size: 12px; color: var(--text-2);
+}
+.scoring-panel .dead-count {
+  font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap;
+}
+.scoring-panel .settle-hint {
+  margin: 8px 0 10px; font-size: 12px; line-height: 1.6; color: var(--text-3);
+}
+/* AI 预判结果高亮（2026/09/19 人工反馈）：整体主题色；正文（`白胜 1.5 目`）粗体，
+ * 圆括号附注（`(W+1.5)`）常规字重（结构由 scoring-panel.predictionResultParts 拆分）。 */
+.scoring-panel .settle-pred { color: var(--accent); }
+.scoring-panel .settle-cancel-hint {
+  font-size: 12px; color: var(--text-3); align-self: center;
+}
+
+/* —— ② 数子结果 —— */
+.scoring-panel .settle-foot {
+  margin: 8px 0 0; font-size: 12px; line-height: 1.6; text-align: center; color: var(--text-3);
+}
+.scoring-panel .settle-step3 { font-size: 12px; margin-bottom: 10px; }
+.scoring-panel .btn.on {
+  border-color: var(--accent); color: var(--accent-contrast); background: var(--accent);
+}
+
+/* —— 结算期间底行/操作隐藏与恢复（棋盘权限由 game-view 驱动） —— */
+
+/* ============================================================
+ * T6.7 棋谱列表与对局管理（GameList，C10）
+ * 说明：布局/列表项/预览卡/筛选条/分页等基线规则见 Part Ⅰ「复盘·棋谱列表」；
+ * 此处只补产品态差异——列表容器、选中高亮、加载/空态、迷你棋盘、移动端 ··· 菜单浮层。
+ * ============================================================ */
+
+/* 列表容器（基线 WEBUI 用内联 padding:10px 12px，产品收拢到类） */
+.rl-list-card { padding: 10px 12px; min-width: 0; }
+.game-list .game-item { min-width: 0; }
+
+/* 姓名搜索框圆角与左侧筛选 tab（.segctl 胶囊 999px）一致（2026/09/14 人工反馈） */
+.filterbar .search .input { border-radius: 999px; }
+
+/* 列表项：点击选中态（区别于 hover 的临时高亮） */
+.game-item.sel {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg-glass));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* 列表加载/错误/空态（复用产品 empty-state 文案层级，居中于卡内） */
+.rl-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px;
+  padding: 42px 16px; text-align: center; color: var(--text-2);
+  min-height: 220px;
+}
+.rl-state .t { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.rl-state .s { font-size: 13px; line-height: 1.7; max-width: 420px; }
+/* 列表空态插画（与 `.empty-state .art` 同尺寸/同透明度；间距由 .rl-state gap 提供） */
+.rl-state .art { display: block; width: 120px; height: 90px; opacity: .55; }
+.rl-actions { display: flex; gap: 10px; margin-top: 8px; }
+.rl-state .spin {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--border-strong); border-top-color: var(--accent);
+  animation: game-spin .9s linear infinite;
+}
+
+/* 预览卡重排（2026/09/13 人工反馈；基线 .preview-head 结构保留给 WEBUI 审核稿）：
+ *   玩家行（黑 vs 白）移至预览图**上方**；图下**一行**＝对局信息（左，不换行、
+ *   超出 `…` 省略；`徽章 · N 手 · 贴 X · 分先/让 N 子 · 结果（仅结束）`）
+ *   + 操作按钮（右）；原「选中对局预览」标题与 SVG 图标已删除。 */
+.preview-players { margin-bottom: 12px; }
+.preview-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-width: 0; }
+.preview-foot .preview-info {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.preview-foot .preview-info .sep { margin: 0 5px; color: var(--text-3); }
+.preview-foot .preview-actions { margin-top: 0; flex: none; }
+
+/* 预览迷你棋盘：SVG 自适应宽高；上限高度防溢出卡片 */
+.preview-board { max-height: 380px; }
+.preview-board svg { width: 100%; height: 100%; display: block; }
+
+/* 移动端单列：Part Ⅰ ≤767 已并入 .game-list-wrap{flex-direction:column;align-items:stretch}——
+ * 此处再对子项做显式宽度钳制（防 390px 横滚）。 */
+@media (max-width: 767px) {
+  .game-list { width: 100%; min-width: 0; max-width: 100%; }
+  .rl-list-card { max-width: 100%; overflow-x: hidden; }
+  /* 筛选条单行（2026/09/13 人工反馈）：状态 tab（含收藏筛选）与姓名搜索同一行不换行——
+   * 档位按钮收窄内边距，搜索框占剩余宽度（min-width:0 允许收缩） */
+  .filterbar { flex-wrap: nowrap; gap: 8px; }
+  .filterbar .segctl { flex: none; }
+  .filterbar .segctl button { padding: 0 10px; }
+  .filterbar .search { flex: 1 1 auto; min-width: 0; max-width: none; }
+}
+
+/* ---- 移动端（≤767）底部弹出预览抽屉（人类修订 R3：仿 T6.6 结算抽屉） ----
+ * 无遮罩贴底（pointer-events:none 使抽屉外区域输入透传给列表——仍可滚/可点行）；
+ * 顶部小横条（grip）= 收起/展开把手：轻点切换、按住下滑收起、上滑展开，绝不关闭；
+ * 抽屉内预览卡与桌面预览卡同款（限宽 384，窄于 384 时自适应），桌面 ≥768 隐藏。 */
+.preview-drawer-root {
+  position: fixed; inset: 0; z-index: 80;
+  display: none; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+@media (max-width: 767px) {
+  .preview-drawer-root { display: flex; }
+}
+/* 抽屉展开时给页面预留底部空间（≥ 抽屉高），保证列表末行/分页可上滚到抽屉上缘之上
+ * （同结算抽屉“页面可上滚露出抽屉之外”语义）；收起后仅预留 grip 条高度。仅 ≤767。 */
+@media (max-width: 767px) {
+  .layout:has(.preview-sheet:not(.collapsed)) { padding-bottom: 62vh; }
+  .layout:has(.preview-sheet.collapsed) { padding-bottom: 64px; }
+}
+.preview-sheet {
+  pointer-events: auto;
+  width: 100%;
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border-top: 1px solid var(--border-strong);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, .2);
+  padding: 8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  animation: settle-up .26s cubic-bezier(.32, .72, 0, 1);
+}
+.preview-sheet.dragging { transition: none; }
+/* 一键收起：仅剩 grip 条（露出更多列表；重新轻点 grip 展开；不关闭） */
+.preview-sheet.collapsed { animation: none; }
+.preview-sheet.collapsed .preview-sheet-body { display: none; }
+/* grip 为可点/可拖把手（按钮语义）：视觉小横条 + 44px 命中区（水平居中） */
+.preview-sheet .drawer-grip {
+  flex: none; display: block; width: 44px; height: auto;
+  border: 0; padding: 4px 0 10px; margin-inline: auto; background: none;
+  cursor: grab; touch-action: none;
+  -webkit-appearance: none; appearance: none;
+}
+.preview-sheet .drawer-grip::before {
+  content: ""; display: block; width: 44px; height: 4px; border-radius: 999px;
+  background: var(--border-strong);
+}
+.preview-sheet.dragging .drawer-grip { cursor: grabbing; }
+.preview-sheet-body {
+  display: flex; justify-content: center;
+  position: relative; /* busy 角标定位基准 */
+  max-height: 56vh; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.preview-sheet-body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* 抽屉内预览卡：与桌面预览卡同宽上限（固定 384px 不随屏缩放，同结算抽屉轨） */
+.preview-sheet .preview-sheet-card {
+  width: min(100%, 384px);
+  flex: none;
+}
+.preview-sheet .preview-board { max-height: 46vh; }
+/* 切局载入角标：保留旧棋盘期间仅右上角叠小 spinner（absolute 不占布局高度，
+ * 避免抽屉高度塌缩回弹 → 列表背景闪烁；PROMPTS L514）。 */
+.preview-busy {
+  position: absolute; top: 12px; right: 12px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg-glass-strong) 88%, transparent);
+  border: 1px solid var(--border-strong); border-radius: 50%;
+  box-shadow: var(--shadow-card); pointer-events: none;
+}
+.preview-busy[hidden] { display: none; }
+.preview-busy i {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  animation: game-spin .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-busy i { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-sheet { animation: none; }
+}
+
+/* 分页省略号占位（与页码按钮同高） */
+.pager .page-ellipsis {
+  min-width: 32px; height: 32px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-3); user-select: none;
+}
+
+/* 移动端 ··· 更多操作浮层（固定定位，随行内锚点；行内 .info-menu 同体系）
+   宽度＝内容自适应（2026/09/13 人工反馈二次修正：删除固定 min-width 104px——菜单项
+   文案缩短后弹层仍偏宽，「导出/删除」两字也占满 104px；与 .info-menu 一致改由
+   最长菜单项内容（图标+文字+按钮内边距）决定收缩宽度） */
+.more-menu {
+  position: fixed; z-index: 60;
+  display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  background: var(--bg-glass-strong);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px; box-shadow: var(--shadow-card);
+}
+.more-menu .btn { justify-content: flex-start; width: 100%; font-size: 13px; }
+.more-menu .btn svg { width: 16px; height: 16px; }
+.more-menu .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 预览加载/空态在预览卡内（无卡片阴影、随卡 padding） */
+.game-preview .rl-state { min-height: 180px; padding: 24px 12px; }
+
+/* 顶栏主 CTA 切换（[+创建对局] ⇄ [导入棋谱]）：非当前项隐藏（Part Ⅰ .hidden 即可） */
+
+/* —— 品牌 Logo 主题适配（2026/09/13 人工反馈：iOS 下 Logo 不跟随浅/深色主题；BUG-068）——
+ * 根因（iOS 复测后修订）：SVG-as-image 内的 prefers-color-scheme 在 iOS Safari 按**系统**
+ * （而非应用主题 / 文档 color-scheme）评估——浅色文件会被系统深色“反色”，且应用主题
+ * 切换不影响它；桌面 Chromium 则按文档 used color-scheme 评估（两边行为不一致）。
+ * 修复：**四资产一律固定色板**（title/title-dark/background/background-dark，禁用自适应块）
+ * + CSS 按 data-theme 选文件；元素由 <img> 改 <span>（background 承载）。
+ * 尺寸＝viewBox 630:180＝3.5 倍高（34px 顶栏 / ≤767 移动 26px）。 */
+.brand .brand-logo {
+  display: block;
+  width: 119px;
+  height: 34px;
+  flex: none;
+  background: url("../title.svg") left center / contain no-repeat;
+}
+html[data-theme="dark"] .brand .brand-logo {
+  background-image: url("../title-dark.svg");
+}
+@media (max-width: 767px) {
+  .topbar .brand .brand-logo { width: 91px; height: 26px; }
+}
+
+/* —— 顶栏主题/静音图标切换平滑动效（2026/09/13 人工反馈）——
+ * 图标换新时给按钮加一次性 `is-icon-swap`（app.js 重排重启动画）；
+ * 减弱动效环境由全局 `animation-duration:0ms !important` 直接关停。 */
+@keyframes icon-swap {
+  from { opacity: 0; transform: scale(.5) rotate(-75deg); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.icon-btn.is-icon-swap .icon {
+  animation: icon-swap .32s cubic-bezier(.34, 1.36, .64, 1);
+}
+
+
+/* ============================================================
+ * T6.8 回放工作台（ReviewView / ReviewSidebar）。
+ * 视觉基线 = WEBUI/pages/review.html；board-tag/trial-tag/track/wr-bar/
+ * coach-* 等基线见 Part Ⅰ「回放工作台」，此处只补产品态差异（`.breathe`
+ * 键帧亦在此补充——基线仅在 demo 内联定义，见下方「分析进行中按钮呼吸」）。
+ * ============================================================ */
+
+/* 复盘卡并列布局：信息+曲线一行，推荐+点评整行（宽 = 第一行两列之和） */
+.sidebar-cards > [data-card='reviewRec'],
+.sidebar-cards > [data-card='reviewComment'] {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* 复盘信息行段（如 第 N 手 / M 等）：accent 段高亮标识 */
+.info-meta .accent { color: var(--accent); font-weight: 600; }
+
+/* 复盘底部操作行 / 对弈底部操作行：[领地] 常驻指示（2026/09/17 回退口径）：
+ *   开启（单击瞬态/连续模式）＝ **整按钮高亮** `is-on`（accent 文字 + accent 描边，非填充）；
+ *   连续模式＝同高亮 ＋ **按钮左上角小圆点**（绝对定位，不改变按钮尺寸）；图标恒为空心。 */
+.bottom-actions .btn.is-on { color: var(--accent); border-color: var(--accent); }
+/* [领地] 连接小圆点：绝对定位在按钮右上角（内缩 6px）；不参与布局 → 按钮宽高不因圆点变化 */
+.bottom-actions .btn[data-act='territory'] { position: relative; }
+.bottom-actions .btn[data-act='territory'] .dot {
+  position: absolute; right: 6px; top: 6px;
+  width: 5px; height: 5px; flex: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* 分析进行中按钮呼吸（设计基线 WEBUI/pages/review.html；产品补充键帧——基线仅在
+ * demo 内联定义，产品 CSS 迁移时遗漏）。用于对弈 [支招] 与复盘 [深度分析]/
+ * [补分析进度]：进行中**仅呼吸**——不改文案、不设 disabled（2026/09/14 人工调整；
+ * 重复点击由行为层忽略）；呼吸与禁用互斥（降级不呼吸）→ 不与 `[disabled]`
+ * 的 .5 半透明发生覆盖。 */
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
+.bottom-actions .btn.breathe { animation: breathe 1.6s ease-in-out infinite; }
+
+/* [补分析] 按钮计数**定宽盒**（2026/09/20 人工反馈：按钮随手数文本变化而抖动）。
+   文案 `补分析 · 待补 N 手` 的位数随分析推进逐手变化（3 位→2 位→1 位），而底部操作行
+   靠右对齐 → 按钮宽度变化即令左缘横跳。中文恒 1em、数字经 `.num` 等宽 → 只锁**数字盒**：
+   取最坏情况 **3 位**（人工口径；对弈/导入棋谱的待补手数 ≤ 999 在实数中恒成立），
+   右对齐使数字列对齐（`.an-text` 的 12px 为原有口径：计数态文案比常规按钮 13px 略小）。 */
+.bottom-actions .btn[data-act='analyze'] .an-text { font-size: 12px; }
+.bottom-actions .btn[data-act='analyze'] .an-count {
+  display: inline-block; min-width: 3ch; text-align: right;
+}
+
+/* 点评气泡（对弈/复盘共用；2026/09/13 人工反馈：复盘页点击棋子点评与对弈页统一为
+   **棋子附近气泡式**——锚定在被点评棋子附近（结构/定位＝js/core/comment-bubble.js）；
+   圆角较原对弈 10px 增大到 14px；无关闭钮/角标操作区，右侧不留多余空白）。 */
+.board-bubble {
+  position: absolute; z-index: 16; min-width: 148px; max-width: min(66%, 260px);
+  padding: 7px 12px; border-radius: 14px;
+  background: var(--bg-glass-strong); border: 1px solid var(--border-strong);
+  backdrop-filter: blur(10px); box-shadow: var(--shadow-card);
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: 12px; color: var(--text-1);
+}
+.board-bubble .b-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 3px; }
+.board-bubble .b-text { min-width: 0; }
+/* 两行必须为**块级**：行内 span 时 .b-text 的 max-content = 两行宽度之和（实测≈317px）
+   → 气泡恒被 max-width 顶到 260px 上限，短文案也显「过宽」（2026/09/15 人工反馈）。 */
+.board-bubble .b-line1 { display: block; font-weight: 600; }
+.board-bubble .b-line2 { display: block; color: var(--text-2); margin-top: 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* 变化图预览胶囊（棋盘下方横幅；点击棋盘任意位置＝暂停/继续/再次播放） */
+.preview-chip {
+  position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 15;
+  display: inline-flex; align-items: center; gap: 10px;
+  max-width: min(92%, 520px);
+  padding: 6px 10px 6px 14px; border-radius: 999px;
+  background: var(--bg-glass-strong); border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  font-size: 12px; color: var(--text-2);
+  box-shadow: var(--shadow-card);
+}
+.preview-chip .btn { flex: none; }
+/* 标签/步数**定宽盒**（2026/09/19 人工反馈：文本长度变化引起胶囊抖动；对弈/复盘同构）。
+   取最坏情况：标签 `变化图`＝3 全角字符（全角进宽恒 1em → 5em）；
+   计数 `15/15`＝5 字符（`ch`＝阿拉伯数字宽，配合 .num 等宽数字逐字符等宽）。
+   → 步进（一位↔两位）与 播放/暂停 标签切换均不改变胶囊宽度与位置。 */
+.preview-chip .pv-label { display: inline-block; min-width: 3em; }
+.preview-chip .pv-count { display: inline-block; min-width: 5ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-bubble, .preview-chip { transition: none; }
+}
+
+/* ≤767：控制轨道允许换行、隐藏装饰性自动播放提示（防横向溢出） */
+@media (max-width: 767px) {
+  .track { flex-wrap: wrap; }
+  .track .track-autop { display: none; }
+}
+
+/* ============================================================
+ * T6.8 人工反馈修订（2026/09/07）：
+ *   - 回放滑轨改自定义（主谱 accent / 试下分支绿、填充平滑过渡、hover 手数气泡）；
+ *   - 信息行试下提示改可点击胶囊（点击 = 回实战）；
+ *   - 棋盘提示（PASS/试下分支详情）迁入对局信息卡底部一行；
+ *   - 播放手数标签 hover 手形。
+ * ============================================================ */
+
+/* 播放手数标签：手形可点而非文本光标；**固定宽度**（2026/09/13 人工反馈：步进时
+   `0 / 0` → `143 / 151` 文本变长会把滑轨推来推去）。取最坏情况＝导入上限
+   ≤2000 手 → `2000 / 2000`（实测 80px），居中显示；宽度固定后滑轨位置不再抖动。 */
+.track .move-label {
+  display: inline-block;
+  width: 80px;
+  text-align: center;
+}
+
+/* —— 回放滑轨（自定义控件；替代 Part Ⅰ input.range，键盘可达） —— */
+.track .rv-slider {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+  --fill: 0%;
+  /* 可配置参数（本文件为唯一配置源，脚本不再内联覆盖；调整只改这里） */
+  --rv-track: 6px;    /* 轨道粗度（与全局滑杆档位一致） */
+  --rv-thumb-w: 16px; /* 椭圆滑钮宽 */
+  --rv-thumb-h: 16px; /* 椭圆滑钮高 */
+}
+/* 底槽 */
+.rv-slider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: var(--rv-track);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.rv-slider .rv-slider-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: var(--rv-track);
+  width: var(--fill);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width .18s ease, background-color .25s ease;
+}
+.rv-slider .rv-slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--fill);
+  width: var(--rv-thumb-w);
+  height: var(--rv-thumb-h);
+  border-radius: 999px; /* 椭圆滑钮（胶囊形） */
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  border: 2px solid var(--high);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  transition: left .18s ease, background-color .25s ease;
+}
+/* 试下分支：轨道/滑块绿色区分 */
+.rv-slider.trial .rv-slider-fill,
+.rv-slider.trial .rv-slider-thumb {
+  background: var(--eng-idle);
+}
+/* 拖动中：填充/滑块禁用过渡（跟随指针实时） */
+.rv-slider.dragging .rv-slider-fill,
+.rv-slider.dragging .rv-slider-thumb {
+  transition: none;
+}
+.rv-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* hover/拖动手数气泡 */
+.rv-slider .rv-slider-tip {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-glass-strong);
+  border: 1px solid var(--border-strong);
+  color: var(--text-1);
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+  z-index: 5;
+}
+.rv-slider .rv-slider-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--border-strong);
+}
+
+/* —— 信息行试下胶囊（行首固定槽位，点击 = 回实战；视觉尺寸对齐 `AI 匹配 · 5K` 徽章，
+ *    2026/09/13：移至 `.info-row` 首位——移动端位于「对局信息」图标之前） —— */
+.trial-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--eng-idle);
+  background: rgba(34,160,107,.14);
+  color: var(--eng-idle);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+.trial-pill:hover { background: rgba(34,160,107,.22); }
+.trial-pill:focus-visible {
+  outline: 2px solid var(--eng-idle);
+  outline-offset: 1px;
+}
+
+/* —— 对局信息卡底部提示行（试下分支详情；纯文字：无外框、无背景色） —— */
+.sidebar-cards .info-hint {
+  margin-top: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+ * T6.10 管理视图（admin-view.js，基线 WEBUI/pages/admin.html）
+ * ============================================================ */
+
+/* —— 页面背景装饰纹理（UI 设置卡开关；background.svg 山峦/墨迹，默认关） ——
+ * 2026/09/13（BUG-068）：背景 SVG 同因改 **主题双文件 + 固定色板**（iOS Safari 按系统评估
+ * SVG-as-image 内媒体查询，浅色文件会被系统深色反色）——浅色 background.svg /
+ * 深色 background-dark.svg，由 data-theme 选切（四个主题资产均禁用 prefers-color-scheme）。 */
+body.tgo-decor::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("../background.svg") center / cover no-repeat;
+}
+html[data-theme="dark"] body.tgo-decor::before {
+  background-image: url("../background-dark.svg");
+}
+
+/* role=switch 按钮化（基线 .switch 面向静态 span；管理页同 create-wizard 语义） */
+.admin-grid button.switch {
+  padding: 0;
+  border: 0;
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.admin-grid button.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.admin-grid button.switch:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+/* 徽章内含 SVG：内联 flex 对齐 */
+.admin-grid .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-grid .badge .icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* 引擎状态大图标（eng-ico svg 颜色由 data-tone 驱动，基线用内联 color） */
+.admin-grid .eng-ico svg {
+  width: 34px;
+  height: 34px;
+}
+.admin-grid .eng-state {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-grid .eng-state small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 模型区徽章行（badge + 名称，长名截断） */
+.admin-grid [data-ref="modelHuman"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-grid [data-ref="modelHuman"] .ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* —— 双列 masonry（T6.10 反馈：系统卡上提补齐引擎/模型卡空缺） —— */
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.admin-grid > .admin-col {
+  display: contents; /* 单列：卡片按内联 order（引擎→参数→UI→版本与资源→系统）排列 */
+}
+.admin-grid > .admin-col > .card {
+  grid-column: 1;
+  min-width: 0; /* grid 项自动最小尺寸会按内容撑破移动端视口（版本与资源卡） */
+}
+/* 长文案/长模型名不得把卡片撑出视口（移动端不横向滚动） */
+.admin-grid .field,
+.admin-grid .field > label,
+.admin-grid .kv .item {
+  min-width: 0;
+}
+.admin-grid .select {
+  min-width: 0;
+  max-width: 100%;
+}
+.admin-grid .kv .value.ellipsis {
+  max-width: 100%;
+}
+/* 版本角标红点：本地版本低于服务器最新版本时提示（圆角矩形右上角） */
+.admin-grid .kv .item {
+  position: relative;
+}
+.admin-grid .upd-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-blunder);
+  box-shadow: 0 0 0 2px var(--bg-glass-strong);
+}
+.admin-grid .upd-dot[hidden] {
+  display: none;
+}
+@media (min-width: 768px) {
+  .admin-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 14px;
+  }
+  .admin-grid > .admin-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 0 1 488px;
+    max-width: 488px;
+    min-width: 0;
+  }
+  .admin-grid > .admin-col > .card {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
+/* —— 空闲超时附注：友好文案单行不换行 —— */
+.admin-grid .range-val {
+  white-space: nowrap;
+}
+
+/* —— 空闲超时滑杆：**固定文本宽度**（2026/09/13 人工反馈：滑杆随文案长短抖动）。
+ *    取值恒为 `X.Y小时`（0.5–5.0，实测最宽 45.8px）→ 固定 52px 右对齐；
+ *    `.range-val` 原 min-width:46px 会被长文案撑开，这里显式定宽。 —— */
+.admin-grid [data-ref="idleVal"] {
+  width: 52px;
+  flex: none;
+  text-align: right;
+}
+
+/* —— 空闲超时滑杆禁用灰置（2026/09/18 人工反馈：常驻＝常驻语义，滑杆联动灰置禁用）。
+ *    禁用来源：常驻开关开启（空闲超时无实际作用）/ 保存、引擎操作在途；
+ *    滑杆本体与数值附注同步降透明（浏览器原生置灰之外显式灰置）。 —— */
+.admin-grid input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
+.admin-grid input[type="range"]:disabled + .range-val { opacity: .45; }
+
+/* —— 参数卡两列网格防溢出（2026/09/13 人工反馈：管理页不横向滚动）。
+ *    768–~810 视口下 .admin-col 收缩到 488px 以下：参数名（无空格长词，如
+ *    numSearchThreadsPerAnalysisThread）的 min-content 会把网格撑出卡片 → 整页横向溢出。
+ *    对策：列可收缩（minmax(0,1fr) + 子项 min-width:0）+ 长词允许断行。 —— */
+@media (min-width: 768px) {
+  .admin-grid .param-group .create-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.admin-grid .param-group .field { min-width: 0; }
+.admin-grid .param-group .field > label { overflow-wrap: anywhere; }
+
+/* —— 引擎级参数名超长单行（2026/09/13 人工反馈：`numSearchThreadsPerAnalysisThread`
+ *    在等分列下换行，要求保持单行、从左侧 `numAnalysisThreads` 借余量）。
+ *    右列按 1:1.5 拿宽（实测 488 卡片下 244px ≥ 标签自然宽 231.8px 单行；
+ *    1024 视口 485 卡片下 242px 仍单行）；左列下限 130px＝`numAnalysisThreads`
+ *    单行实宽（≈123px）+余量——**不能用 min-content**（`overflow-wrap:anywhere`
+ *    会让 min-content 退化为单字符宽、下限失效致左列也跟着折行）；
+ *    窄卡（768–~920）两列等比收缩、右列退回换行兜底，仍不横向溢出。 —— */
+/* 版本与资源卡：提示条（hidden 必须真正隐藏，避免被 display:flex 覆盖） */
+.admin-grid .upd-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 10px; }
+.admin-grid .upd-note[hidden] { display: none; }
+
+/* —— 版本与资源卡：更新说明弹窗（可选跳转 GitHub） ——
+ * 正文来自 Release body（纯文本/轻量 Markdown），保持换行；正文区限高滚动，
+ * 避免长说明把弹窗撑出视口。 */
+.upd-notes-dialog { width: min(640px, 100%); }
+.upd-notes-dialog .upd-notes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+.upd-notes-dialog .upd-notes-head .dialog-title { margin-bottom: 0; }
+.upd-notes-dialog .upd-notes-body {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-2);
+  scrollbar-width: none;
+}
+.upd-notes-dialog .upd-notes-body::-webkit-scrollbar { width: 0; height: 0; }
+.upd-notes-dialog .upd-notes-body code {
+  font-size: 12px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-base);
+}
+.upd-notes-dialog .upd-notes-li { display: block; padding-left: 10px; text-indent: -10px; }
+
+@media (min-width: 768px) {
+  .admin-grid .param-group--engine .create-grid {
+    grid-template-columns: minmax(130px, 1fr) minmax(0, 1.5fr);
+  }
+}
+.admin-grid .field .hint,
+.admin-grid .param-group .hint {
+  white-space: normal; /* 说明性 hint 允许折行 */
+}
+
+/* —— 引擎级未保存脏提示（T6.10 反馈：和当前 .yaml 不一致时标记） —— */
+.admin-grid .dirty-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.admin-grid .dirty-note .icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.admin-grid .dirty-note[hidden] {
+  display: none;
+}
+
+/* ============================================================================
+ * 复盘侧栏卡片保留式加载（2026/09/13，防塔陷）：步进等待新数据期间既有内容
+ * 原地保留 + 忙碌遮罩——不换矮占位再回弹（实测推荐卡 276→120→324px、
+ * 点评卡 132→113→132px 抖动）。处置同 BUG-006/051：已有内容 loading 期不换矮占位。
+ * ========================================================================== */
+.review-sidebar-cards [data-ref="rvRecBody"].is-busy,
+.review-sidebar-cards [data-ref="rvCommentBody"].is-busy {
+  position: relative; pointer-events: none;
+}
+.review-sidebar-cards [data-ref="rvRecBody"].is-busy > *,
+.review-sidebar-cards [data-ref="rvCommentBody"].is-busy > * {
+  opacity: .45; transition: opacity .15s ease;
+}
+.review-sidebar-cards [data-ref="rvRecBody"].is-busy::after,
+.review-sidebar-cards [data-ref="rvCommentBody"].is-busy::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px;
+  margin: -11px 0 0 -11px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+
+/* ============================================================================
+ * 棋局列表保留式加载（2026/09/13，防闪烁 BUG-061）：切换状态 tab / 收藏筛选 / 搜索 /
+ * 分页的等待期既有行原地保留 + 忙碌遮罩——不换矮 loading 块 → 列表高度不塌缩、
+ * 页面滚动不跳动（同 BUG-006/051/052 处置；spinner 置列表顶部中央，长列表亦可见）。
+ * ========================================================================== */
+.rl-list-card.is-busy { position: relative; pointer-events: none; }
+.rl-list-card.is-busy > * { opacity: .45; transition: opacity .15s ease; }
+.rl-list-card.is-busy::after {
+  content: ""; position: absolute; left: 50%; top: 18px; width: 26px; height: 26px;
+  margin-left: -13px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rl-list-card.is-busy::after { animation: none; }
+}
+
+/* ============================================================================
+ * 对局报告 · 终局信息气泡（2026/09/13）：标题右侧终点旗图标，点击展开；
+ * 仅终局显示（双 PASS 确认结算局三行：终局结果/黑目/白目；认输仅结果行）。
+ * 样式与全局 Tooltip 同一套玻璃 token（--bg-glass-strong/--border-strong/--text-1），
+ * 但为点击态元素；箭头为 45° 菱格，形态同 .tgo-tip。
+ * ========================================================================== */
+.report-head .ttl-group { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+/* 旗帜 + 气泡锚（2026/09/15）：气泡改锚定旗帜按钮自身（原锚定 ttl-group 右缘——加链精度徽章后
+   锚点右移、错位；ttl-group 被拉伸时更严重） */
+.report-head .settle-anchor { position: relative; display: inline-flex; align-items: center; }
+.report-head .settle-btn { width: 28px; height: 28px; border-radius: 8px; color: var(--text-2); }
+.report-head .settle-btn:hover,
+.report-head .settle-btn[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.report-head .settle-pop {
+  position: absolute; left: 50%; top: calc(100% + 9px); transform: translateX(-50%);
+  z-index: 300; min-width: 176px; padding: 8px 11px; border-radius: 10px;
+  background: var(--bg-glass-strong);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-1); font-size: 12px; line-height: 1.7; font-weight: 500;
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+}
+.report-head .settle-pop::before {
+  content: ""; position: absolute; left: 50%; top: -5px; width: 10px; height: 10px; margin-left: -5px;
+  background: var(--bg-glass-strong);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-strong);
+  border-right: 0; border-bottom: 0; border-radius: 2px 0 0 0;
+  transform: rotate(45deg);
+}
+.report-head .settle-pop[hidden] { display: none; }
+.report-head .settle-pop .sp-row { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; white-space: nowrap; }
+.report-head .settle-pop .sp-label { color: var(--text-3); }
+.report-head .settle-pop .sp-value { font-variant-numeric: tabular-nums; }
+
+/* ============================================================================
+ * 页面视图：对弈/复盘页视口适配（2026/09/13 人工反馈；勿回退）
+ *
+ * 目标：① 页面不上下滚动——棋盘区整体（上方信息行 + 棋盘 + 下方控件）随视口自适应，
+ *        绝不让棋盘区滚出屏幕；PC/平板侧栏内容超长时仅**侧栏内部**纵向滚动（滚动条隐藏）；
+ *      ② 页面不横向滚动（全局规则：body overflow-x:clip，见 Part Ⅰ 基础节）。
+ *
+ * 机制：body 转为满视口纵向 flex（顶栏定高 + 主区 flex:1 + min-height:0）；
+ *      .board-zone 转纵向 flex，棋盘容器 flex:0 1 auto + aspect-ratio:1 ——
+ *      空间不足时棋盘等比缩小、宽裕时保持正方形（上限＝可用宽度）。
+ *
+ * 兜底（2026/09/13 人工决策）：棋盘最小边长 --board-min-size；窗口高度连
+ *      「控件行 + 最小棋盘」都放不下时，内容自然外溢、页面恢复纵向滚动（不裁剪）。
+ *
+ * 说明：规则统一挂 `body:has(.layout.game)`（只作用于对弈/复盘视图；不支持 :has 的
+ *      浏览器自动回退旧行为，见 .board-wrap 基线 max-height 预算）。
+ * ========================================================================== */
+body:has(.layout.game) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;      /* 回退（无 dvh 的旧浏览器） */
+  height: 100dvh;    /* 动态视口：移动端地址栏伸缩时棋盘区仍完整可见 */
+  padding-top: 8px;  /* 顶栏上方留白＝原 .topbar margin-top（改 body padding 消除 8px 滚动余量） */
+  overflow-x: clip;
+  overflow-y: auto;  /* 仅“低于棋盘最小尺寸”的兜底场景才有滚动量 */
+}
+body:has(.layout.game) > .topbar { flex: none; width: 100%; margin-top: 0; }
+/* width:100%＝flex 交叉轴 margin:auto 会令 item 按内容收缩（fit-content），须显式撑满；
+   上限仍由 .layout max-width:1440 与 margin:auto 居中承担 */
+body:has(.layout.game) > .layout.game { flex: 1 1 auto; width: 100%; min-height: 0; align-items: stretch; }
+body:has(.layout.game) .board-zone { display: flex; flex-direction: column; min-height: 0; }
+/* 行（信息行/控件行/滑轨等）保持自然高度：空间不足时只收缩棋盘，行本身不压缩 */
+body:has(.layout.game) .board-zone > :not(.board-wrap) { flex: none; }
+body:has(.layout.game) .board-wrap {
+  flex: 0 1 auto;                    /* 占满剩余高度；不足时收缩（下限＝最小边长） */
+  min-height: var(--board-min-size);
+  max-height: none;                  /* 旧 calc(100vh - 250px) 预算由 flex 自适应取代 */
+}
+/* PC/平板侧栏超长：仅侧栏内部纵向滚动（滚动条隐藏）。
+   ⚠ 滚动容器会在 **padding box** 边界裁剪内容——卡片投影（--shadow-card 24px 模糊，
+   约 18px 内衰竭）会被裁出硬边（2026/09/13 人工反馈：侧栏边界“硬边接缝”）。
+   兼顾方案：侧栏四周补一圈 --sidebar-shadow-bleed padding（＝投影渐隐半径，恰好与
+   布局 gap 20px / 页面 padding 20px 对齐）+ 同值负 margin 抵消占位——投影在 padding
+   区内自然渐隐后再到裁剪边界，卡片位置/尺寸不变（width 补 2×bleed，负 margin 收回）。 */
+body:has(.layout.game) .sidebar {
+  --sidebar-shadow-bleed: 20px;
+  width: calc(384px + var(--sidebar-shadow-bleed) * 2);
+  margin: calc(var(--sidebar-shadow-bleed) * -1);
+  padding: var(--sidebar-shadow-bleed);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+body:has(.layout.game) .sidebar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ============================================================================
+ * 棋谱列表 / 管理页 / 创建向导页级滚动条隐藏（2026/09/13；创建向导 2026/09/15 人工反馈）
+ * 目标：非对弈/复盘页面隐藏**页面纵向滚动条**（滚动本身保留：滚轮/触控/键盘照常，
+ *      仅无滚动条占位与显示）；与对弈页侧栏「内部可滚但不显示滚动条」口径一致。
+ * 范围：`#main.layout:not(.game)`（对弈/复盘视图主区带 .game 故不受影响；欢迎/引导页无 .layout）；
+ *      **创建向导**路由 `#main` 为空（无 .layout），页面仅 ~8px 溢出也会露出整页滚动条
+ *      → 以向导遮罩（`.dialog-mask.create-wizard`）存在为条件一并隐藏。
+ *
+ * 2026/10/18（管理页人工反馈）：非对弈页面同样须「左右固定」——移动端触摸不能
+ * 拖曳页面横向滑动。`overflow-x: clip` 与对弈/复盘页口径一致；iOS Safari 旧版
+ * 不支持 clip 时由 html 的 `overflow-x: hidden` 兜底（html 为根滚动容器，不破坏 sticky）。
+ * ========================================================================== */
+html:has(#main.layout:not(.game)) {
+  overflow-x: hidden; /* iOS 旧版兜底（clip 不支持时仍不可横向拖曳） */
+}
+body:has(#main.layout:not(.game)) {
+  overflow-x: clip;
+  overscroll-behavior-x: none; /* 抑制移动端横向回弹/手势导航 */
+}
+html:has(#main.layout:not(.game)),
+body:has(#main.layout:not(.game)),
+html:has(.dialog-mask.create-wizard),
+body:has(.dialog-mask.create-wizard) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html:has(#main.layout:not(.game))::-webkit-scrollbar,
+body:has(#main.layout:not(.game))::-webkit-scrollbar,
+html:has(.dialog-mask.create-wizard)::-webkit-scrollbar,
+body:has(.dialog-mask.create-wizard)::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* ============================================================================
+ * 信息行（对弈/复盘）· 移动端单行省略 + 行首「对局信息」图标 + 顶层信息弹层
+ * （2026/09/13 人工反馈）
+ *
+ * 移动端（≤767）：信息行强制单行 —— 文本段（手数/路数/规则/贴目/分先/结果…）归入
+ *   .meta-clip 单行 `…` 省略；「自动点评」开关、「AI 匹配 · 5K」徽章、[···] 菜单
+ *   固定完整显示（不参与省略）；**试下胶囊固定于行首**（`.info-row` 首位直接子级，
+ *   位于「对局信息」图标之前，2026/09/13 人工反馈）；行首「对局信息」图标常驻——
+ *   点击弹出全部对局信息（.info-pop 顶层浮层；任意其他操作回收：外部点击/滚动/Esc）。
+ * 桌面（≥768）：不受影响 —— .meta-clip 为 display:contents（.info-meta 直接子级仍是
+ *   各段与分隔符，与既有布局完全一致），.info-icon 隐藏（桌面行内宽度足够；胶囊本就
+ *   处于文段之前，仍居行首）。
+ * ========================================================================== */
+.info-icon { display: none; flex: none; }
+.meta-clip { display: contents; }
+
+@media (max-width: 767px) {
+  .info-row { flex-wrap: nowrap; }
+  .info-icon { display: inline-flex; width: 36px; padding: 0; justify-content: center; }
+  .info-meta { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+  .meta-clip {
+    display: block; flex: 1 1 auto; min-width: 0;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .meta-clip .sep { margin: 0 6px; }    /* 块内为内联流，不享受 .info-meta 的 gap */
+  .meta-clip + .sep { display: none; }  /* 省略号已表截断，后接分隔符多余 */
+  .info-meta > .badge,
+  .info-meta > button.badge,
+  .info-row > .trial-pill { flex: none; }  /* 徽章/自动点评开关/试下胶囊：固定完整 */
+}
+
+/* —— 全部对局信息弹层（对弈/复盘共用；顶层浮层，JS 按视口钳制定位） —— */
+.info-pop {
+  position: fixed;
+  z-index: 500;                 /* 顶层：高于抽屉(90)/卡片气泡(300/320)，低于 Toast(999) */
+  max-width: min(92vw, 460px);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--bg-glass-strong);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.info-pop[hidden] { display: none; }
+
+
+/* ============================================================================
+ * 赞助（C18，2026/10/20）
+ * 管理页顶栏「添盏清茶」：点击发光 + 长按 3 秒茶汤蓄力；完成后全屏彩带 +
+ * 固定尺寸玻璃赞助卡片；关闭时 Canvas 粒子沙化。全部动效仅 opacity/transform，
+ * 不改变卡片布局高度；`prefers-reduced-motion` 下由 JS/CSS 双重降级。
+ * ========================================================================== */
+
+/* ---- 顶栏按钮：茶汤填充（--sponsor-charge: 0..1） ---- */
+.topbar .btn-sponsor {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  --sponsor-charge: 0;
+  min-width: 112px;
+  touch-action: none;                 /* 触摸长按时不滚动/缩放 */
+  -webkit-touch-callout: none;         /* iOS 原生长按菜单 */
+  -webkit-user-select: none;
+  user-select: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .28);
+}
+.topbar .btn-sponsor .sponsor-liquid {
+  position: absolute;
+  inset: 7px 0 0;
+  z-index: 0;
+  overflow: visible;                   /* 波峰伸出液面，由按钮裁切 */
+  pointer-events: none;
+  /* 主体少 7px，波峰向上补齐；位移补回 7px，液面仍随蓄力线性上升 */
+  transform: translateY(calc((1 - var(--sponsor-charge)) * (100% + 7px)));
+  background: linear-gradient(180deg, var(--sponsor-tea) 0%, var(--sponsor-tea-deep) 100%);
+  will-change: transform;
+  /* 单层波峰：96px 内三个不同高度的峰值（y=1 / 3.5 / 2），避免规则等高波纹 */
+  --sponsor-wave-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='12' viewBox='0 0 96 12'%3E%3Cpath d='M0 7 C5 7 11 1 16 1 C21 1 27 6 32 6 C37 6 43 3.5 48 3.5 C53 3.5 59 7 64 7 C69 7 75 2 80 2 C85 2 91 6 96 7 V12 H0 Z' fill='%23fff'/%3E%3C/svg%3E");
+}
+.topbar .btn-sponsor .sponsor-liquid::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: -7px;
+  height: 12px;
+  z-index: 1;
+  pointer-events: none;
+  background-color: var(--sponsor-tea);
+  -webkit-mask-image: var(--sponsor-wave-mask);
+  mask-image: var(--sponsor-wave-mask);
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 96px 12px;
+  mask-size: 96px 12px;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.topbar .btn-sponsor.is-charging .sponsor-liquid::before,
+.topbar .btn-sponsor.is-filled .sponsor-liquid::before,
+.topbar .btn-sponsor.is-complete .sponsor-liquid::before {
+  opacity: .98;
+  animation: sponsor-wave-drift 4.2s linear infinite, sponsor-wave-bob 2.6s ease-in-out infinite;
+}
+.topbar .btn-sponsor .icon,
+.topbar .btn-sponsor .sponsor-label { position: relative; z-index: 1; }
+.topbar .btn-sponsor.is-filled { color: #2B1A05; text-shadow: none; }
+.topbar .btn-sponsor.is-charging {
+  cursor: progress;
+  animation: sponsor-charge-glow 1.6s ease-in-out infinite;
+}
+.topbar .btn-sponsor.is-charging .icon { animation: sponsor-tea-bob 1.1s ease-in-out infinite; }
+.topbar .btn-sponsor.is-complete {
+  box-shadow: 0 0 0 3px var(--sponsor-tea-soft), 0 4px 18px rgba(0, 0, 0, .18);
+}
+.topbar .btn-sponsor.is-glow { animation: sponsor-glow .62s var(--ease); }
+@keyframes sponsor-wave-drift {
+  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  to { -webkit-mask-position: 96px 0; mask-position: 96px 0; }
+}
+@keyframes sponsor-wave-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+@keyframes sponsor-charge-glow {
+  0%, 100% { box-shadow: 0 0 0 2px var(--sponsor-tea-soft), 0 0 14px 2px rgba(232, 180, 74, .28); }
+  50% { box-shadow: 0 0 0 4px var(--sponsor-tea-soft), 0 0 24px 6px rgba(232, 180, 74, .44); }
+}
+@keyframes sponsor-tea-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+@keyframes sponsor-glow {
+  0% { box-shadow: 0 0 0 0 rgba(232, 180, 74, 0); }
+  35% { box-shadow: 0 0 0 4px var(--sponsor-tea-soft), 0 0 22px 5px rgba(232, 180, 74, .38); }
+  100% { box-shadow: 0 0 0 0 rgba(232, 180, 74, 0); }
+}
+
+/* ---- 弹层与卡片（固定轨：切换方式/金额不改变高度） ---- */
+.sponsor-mask {
+  z-index: 120;
+  background: rgba(10, 12, 14, .42);
+  animation: sponsor-mask-in .2s ease-out;
+}
+.sponsor-mask.is-closing { animation: sponsor-mask-out .55s ease forwards; }
+@keyframes sponsor-mask-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sponsor-mask-out {
+  to { opacity: 0; }
+}
+.sponsor-confetti {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+.sponsor-card {
+  --sponsor-qr-size: clamp(184px, min(62vw, 34vh), 232px);
+  position: relative;
+  z-index: 1;
+  width: min(452px, calc(100vw - 32px));
+  max-height: min(88vh, 780px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 24px;
+  border-radius: 24px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, var(--sponsor-tea-soft), transparent 62%),
+    var(--bg-glass-strong);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card), 0 30px 80px rgba(0, 0, 0, .22);
+  backdrop-filter: blur(20px) saturate(1.2);
+  color: var(--text-1);
+  animation: sponsor-card-in .38s var(--ease);
+  transition: opacity .42s ease, transform .42s ease;
+}
+.sponsor-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.sponsor-card.is-sanding {
+  animation: none;
+  opacity: 0;
+  transform: translate(10px, -3px) scale(.985) rotate(.35deg);
+  pointer-events: none;
+}
+@keyframes sponsor-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.sponsor-sand {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.sponsor-card :is(button, [href]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- 头部 ---- */
+.sponsor-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+}
+.sponsor-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-right: 38px;
+  margin-bottom: 18px;
+}
+.sponsor-seal {
+  box-sizing: border-box;
+  width: 50px;
+  height: 50px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--sponsor-tea-deep);
+  background: radial-gradient(circle at 35% 30%, #FFF7E4, var(--sponsor-tea-soft));
+  overflow: hidden;
+}
+html[data-theme="dark"] .sponsor-seal {
+  color: var(--sponsor-gold);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .12), var(--sponsor-tea-soft));
+}
+.sponsor-seal .icon { width: 26px; height: 26px; }
+.sponsor-heading { min-width: 0; }
+.sponsor-head h2 {
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+.sponsor-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ---- 支付方式 / 金额 ---- */
+.sponsor-methods {
+  display: flex;
+  width: 100%;
+  flex-wrap: nowrap;
+  margin-bottom: 12px;
+}
+.sponsor-methods button {
+  flex: 1;
+  justify-content: center;
+}
+.sponsor-amounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sponsor-amount {
+  position: relative;
+  min-height: 86px;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  text-align: left;
+  border-radius: 14px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+.sponsor-amount:hover { border-color: var(--sponsor-tea); }
+.sponsor-amount.on {
+  border-color: var(--sponsor-tea);
+  background: var(--sponsor-tea-soft);
+  box-shadow: 0 0 0 3px var(--sponsor-tea-soft);
+}
+.sponsor-amount::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sponsor-tea);
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.sponsor-amount.on::after { opacity: 1; transform: scale(1); }
+.sponsor-amount-title {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sponsor-amount-price {
+  font-size: 24px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.sponsor-amount-price small {
+  margin-right: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sponsor-tea-deep);
+}
+.sponsor-amount.on .sponsor-amount-price { color: var(--sponsor-tea-deep); }
+html[data-theme="dark"] .sponsor-amount-price small { color: var(--sponsor-gold); }
+html[data-theme="dark"] .sponsor-amount.on .sponsor-amount-price { color: var(--sponsor-gold); }
+
+/* ---- 二维码舞台（固定尺寸，加载/失败均为绝对定位覆盖） ---- */
+.sponsor-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.sponsor-qr-stage {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--sponsor-qr-size);
+  /* 显式高度：Safari 对 aspect-ratio + padding + object-fit 的组合存在计算差异，
+     固定宽高可保证二维码舞台与图像内容始终同心 */
+  height: var(--sponsor-qr-size);
+  padding: clamp(8px, 2.4vw, 12px);
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .10);
+}
+.sponsor-qr-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;              /* 等比适配不同尺寸 PNG，不拉伸/裁切二维码 */
+  object-position: center;
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+.sponsor-qr-img[hidden] { display: none; }
+.sponsor-qr-img.is-ready { opacity: 1; }
+.sponsor-qr-img.is-loading { opacity: .35; }
+.sponsor-qr-skeleton {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background: linear-gradient(100deg, #f3f0e9 25%, #fbf9f4 37%, #f3f0e9 63%);
+  background-size: 300% 100%;
+  animation: sponsor-shimmer 1.25s linear infinite;
+}
+.sponsor-qr-skeleton.is-on { display: block; }
+.sponsor-qr-skeleton span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: 42%;
+  transform: translate(-50%, -50%);
+  border-radius: 12px;
+  border: 2px dashed rgba(0, 0, 0, .12);
+}
+@keyframes sponsor-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+.sponsor-qr-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  background: var(--bg-glass-strong);
+  color: var(--text-2);
+}
+.sponsor-qr-error[hidden] { display: none; }
+.sponsor-qr-error .icon { width: 26px; height: 26px; color: var(--eng-init); }
+.sponsor-qr-error-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.sponsor-qr-error-hint { font-size: 12px; color: var(--text-3); }
+.sponsor-qr-error .btn { margin-top: 4px; }
+.sponsor-qr-caption {
+  max-width: 100%;
+  min-height: 20px;
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 友情提示（固定最小高度，避免文案换行导致卡片跳动） ---- */
+.sponsor-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-height: 40px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+.sponsor-note .icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--sponsor-tea-deep);
+}
+html[data-theme="dark"] .sponsor-note .icon { color: var(--sponsor-gold); }
+.sponsor-note span { min-width: 0; }
+.sponsor-powered {
+  color: var(--sponsor-tea-deep);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px dashed transparent;
+  transition: color .15s ease, border-color .15s ease;
+}
+.sponsor-powered:hover {
+  color: var(--sponsor-tea);
+  border-bottom-color: currentColor;
+}
+html[data-theme="dark"] .sponsor-powered { color: var(--sponsor-gold); }
+html[data-theme="dark"] .sponsor-powered:hover { color: var(--sponsor-tea); }
+
+/* ---- 移动端 / 矮屏 ---- */
+@media (max-width: 767px) {
+  .sponsor-card {
+    width: calc(100vw - 24px);
+    max-height: 90vh;
+    padding: 20px 18px;
+    border-radius: 20px;
+  }
+  .sponsor-head { margin-bottom: 15px; }
+  .sponsor-seal { width: 44px; height: 44px; }
+  .sponsor-head h2 { font-size: 18px; }
+  .sponsor-amount { min-height: 80px; padding: 10px 12px; }
+  .sponsor-amount-title { font-size: 11px; }
+  .sponsor-amount-price { font-size: 22px; }
+}
+@media (max-height: 700px) {
+  .sponsor-card {
+    --sponsor-qr-size: clamp(168px, min(60vw, 34vh), 200px);
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+  .sponsor-head { margin-bottom: 12px; }
+  .sponsor-amount { min-height: 74px; }
+}
+
+/* ---- 减弱动效：功能性蓄力仍可用，仅关闭装饰动画 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .sponsor-mask,
+  .sponsor-card,
+  .sponsor-sand,
+  .sponsor-qr-skeleton,
+  .topbar .btn-sponsor,
+  .topbar .btn-sponsor .sponsor-liquid::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .sponsor-card.is-sanding { opacity: 1; transform: none; }
+  .topbar .btn-sponsor.is-charging {
+    box-shadow: 0 0 0 3px var(--sponsor-tea-soft), 0 0 18px 3px rgba(232, 180, 74, .32);
+  }
+}

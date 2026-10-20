@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "wechat": {
+    "qr": {
+      "8": "wechat_qr/8.png",
+      "18": "wechat_qr/18.png"
+    }
+  },
+  "alipay": {
+    "qr": {
+      "8": "alipay_qr/8.png",
+      "18": "alipay_qr/18.png"
+    }
+  }
+}

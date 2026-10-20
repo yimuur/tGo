@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>对局报告弹层 · fake 验收（T6.9 scratch，勿发布）</title>
+<link rel="stylesheet" href="../css/app.css" />
+<style>
+  html, body { margin: 0; }
+  body { background: linear-gradient(160deg, #EFEAE2, #E4DCCE); color: #2A2620; font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #harness { padding: 18px 20px 10px; }
+  #harness h1 { font-size: 16px; margin: 0 0 4px; }
+  #harness p { font-size: 12px; color: #6b645c; margin: 0 0 10px; line-height: 1.6; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row + .row { margin-top: 8px; }
+  .btn { border: 1px solid #c9c1b6; background: #fffdf9; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .btn:hover { border-color: #1F4E5F; color: #1F4E5F; }
+  .btn.sel { border-color: #1F4E5F; background: #1F4E5F; color: #fff; }
+  .hint { font-size: 12px; color: #8a6d00; margin-left: 6px; }
+  .spacer { flex: 1; }
+  .badge-sc { font-size: 11px; background: #f1ede6; border: 1px solid #d8d0c4; border-radius: 999px; padding: 1px 8px; margin-left: 6px; color:#6b645c; }
+</style>
+</head>
+<body>
+<div id="harness">
+  <h1>对局报告弹层验收（fake 数据）<span class="badge-sc">T6.9 · scratch</span></h1>
+  <p>场景均使用伪造 GameInfo/Report 载荷（与后端 API 同构）；点击后自动打开弹层，可再点弹层内视角 segctl 观察黑白切换（loading 骨架）。关闭：✕ / Esc / 点遮罩。</p>
+  <div class="row">
+    <span style="font-size:12px;font-weight:600">场景：</span>
+    <button class="btn sel" data-sc="humanAiB">人机·人类执黑(默认黑视角)</button>
+    <button class="btn" data-sc="humanAiW">人机·人类执白(默认白视角)</button>
+    <button class="btn" data-sc="humanHuman">人人(默认黑)</button>
+    <button class="btn" data-sc="deepW">直达 ?p=W(白/AI 视角)</button>
+    <button class="btn" data-sc="incomplete">直达不完整(ANALYSIS_INCOMPLETE)</button>
+    <button class="btn" data-sc="notfound">对局不存在(404)</button>
+    <button class="btn" data-sc="error">加载失败(网络)</button>
+  </div>
+  <div class="row">
+    <span style="font-size:12px;font-weight:600">载荷延迟：</span>
+    <button class="btn" data-delay="0">0ms</button>
+    <button class="btn" data-delay="1200">1200ms(看骨架)</button>
+    <span style="width:20px"></span>
+    <button class="btn" data-theme2="light">浅色</button>
+    <button class="btn" data-theme2="dark">深色</button>
+    <span class="hint">深色切换 data-theme 验证 token 联动；弹层内容与 app.css 生产一致。</span>
+  </div>
+</div>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+  import { createReportDialog } from '../js/views/report-dialog.js';
+
+  /* ---------------- fake 数据（与后端同构） ---------------- */
+  const HUMAN_AI_B = {
+    id: 58, mode: 'human_ai', human_color: 'B', black_name: '老陈', black_rank: 'rank_3d',
+    white_name: 'AI', white_rank: 'rank_5k', board_size: 19, rules: 'chinese', komi: 7.5, last_move_no: 120,
+  };
+  const HUMAN_AI_W = {
+    id: 59, mode: 'human_ai', human_color: 'W', black_name: 'AI', black_rank: 'rank_5k',
+    white_name: '老陈', white_rank: 'rank_3d', board_size: 19, rules: 'aga', komi: 7.5, last_move_no: 96,
+  };
+  const HUMAN_HUMAN = {
+    id: 60, mode: 'human_human', human_color: null, black_name: '张三', black_rank: 'rank_1k',
+    white_name: '李四', white_rank: 'rank_5k', board_size: 13, rules: 'japanese', komi: 6.5, last_move_no: 66,
+  };
+
+  const reportFor = (game, p) => {
+    const w = p === 'W';
+    return {
+      game_id: game.id, perspective: p,
+      player_name: w ? game.white_name : game.black_name,
+      player_rank: w ? game.white_rank : game.black_rank,
+      total_moves: game.last_move_no, player_move_count: 60, top_n: 3,
+      match_rate: w ? 0.47 : 0.5833, top_n_hits: w ? 28 : 35,
+      mean_score_loss: w ? 0.63 : 0.42,
+      move_quality: w ? { 妙着: 9, 正着: 26, 缓着: 12, 失误: 10, 败着: 3 }
+                       : { 妙着: 17, 正着: 31, 缓着: 8, 失误: 3, 败着: 1 },
+      rating: w
+        ? { label: '业余 3段-4段', description: '布局均衡，中盘战斗偶有缓手' }
+        : { label: '业余 4段-5段', description: '大局观良好，但在复杂战斗中偶尔会下出缓着' },
+      turning_points: w
+        ? [
+          { move_no: 101, delta_winrate: -0.32, score_delta: -3.1, grade: 'blunder' },
+          { move_no: 77, delta_winrate: -0.11, score_delta: -1.4, grade: 'mistake' },
+          { move_no: 52, delta_winrate: 0.09, score_delta: 0.2, grade: 'good' },
+        ]
+        : [
+          { move_no: 88, delta_winrate: -0.214, score_delta: -2.4, grade: 'blunder' },
+          { move_no: 62, delta_winrate: -0.097, score_delta: -1.2, grade: 'mistake' },
+          { move_no: 41, delta_winrate: 0.128, score_delta: 0.1, grade: 'brilliant' },
+          { move_no: 17, delta_winrate: 0.06, score_delta: 0.05, grade: 'good' },
+        ],
+    };
+  };
+
+  const GAMES = { 58: HUMAN_AI_B, 59: HUMAN_AI_W, 60: HUMAN_HUMAN };
+
+  const state = { sc: 'humanAiB', delay: 0 };
+
+  function pick() {
+    const s = state.sc;
+    if (s === 'humanAiB') return { id: 58, p: undefined };
+    if (s === 'humanAiW') return { id: 59, p: undefined };
+    if (s === 'humanHuman') return { id: 60, p: undefined };
+    if (s === 'deepW') return { id: 58, p: 'W' };
+    if (s === 'notfound') return { id: 999, p: undefined }; // 未缓存 id → 详情 404
+    return { id: 58, p: undefined };
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  const fakeApi = {
+    async get(url) {
+      await sleep(state.delay);
+      const m = /\/games\/(\d+)$/.exec(url);
+      const rp = /\/games\/(\d+)\/report\?perspective=([BW])$/.exec(url);
+      if (state.sc === 'notfound' && m) {
+        throw { code: 'GAME_NOT_FOUND', status: 404, message: '对局不存在' };
+      }
+      if (state.sc === 'error') {
+        throw { code: 'NETWORK_ERROR', message: '网络错误（fake）' };
+      }
+      if (m) {
+        const g = GAMES[Number(m[1])];
+        if (!g) throw { code: 'GAME_NOT_FOUND', status: 404 };
+        return { data: g };
+      }
+      if (rp) {
+        if (state.sc === 'incomplete') {
+          throw { code: 'ANALYSIS_INCOMPLETE', message: '分析数据不完整，无法生成报告' };
+        }
+        const g = GAMES[Number(rp[1])];
+        return { data: reportFor(g, rp[2]) };
+      }
+      throw { code: 'INTERNAL_ERROR', message: '未知 url ' + url };
+    },
+  };
+
+  const dlg = createReportDialog({
+    api: fakeApi,
+    nav: (hash) => { console.log('[fake nav]', hash); },
+  });
+
+  function run() {
+    const { id, p } = pick();
+    dlg.open(id, p ? { perspective: p } : undefined);
+  }
+
+  document.querySelectorAll('[data-sc]').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-sc]').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel');
+      state.sc = b.dataset.sc;
+      run();
+    });
+  });
+  document.querySelectorAll('[data-delay]').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-delay]').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel');
+      state.delay = Number(b.dataset.delay);
+      run();
+    });
+  });
+  document.querySelectorAll('[data-theme2]').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.documentElement.dataset.theme = b.dataset.theme2;
+    });
+  });
+
+  // 自动打开默认场景（人机·人类执黑 → 默认黑视角）
+  run();
+</script>
+</body>
+</html>

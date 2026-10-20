@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" class="ai-go-icon">
+  <defs>
+    <!-- 背景渐变：浅色 -->
+    <linearGradient id="bgLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4EEDD"/>
+      <stop offset="100%" stop-color="#E2D4B7"/>
+    </linearGradient>
+
+    <!-- 背景渐变：深色 -->
+    <linearGradient id="bgDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E232A"/>
+      <stop offset="100%" stop-color="#0F1216"/>
+    </linearGradient>
+
+    <!-- MCTS 主路线渐变（发光青天蓝） -->
+    <linearGradient id="mctsMainGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00F2FE"/>
+      <stop offset="100%" stop-color="#4FACFE"/>
+    </linearGradient>
+
+    <!-- 黑子渐变 -->
+    <radialGradient id="blackStone" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#3A3D40"/>
+      <stop offset="60%" stop-color="#181A1C"/>
+      <stop offset="100%" stop-color="#0D0E10"/>
+    </radialGradient>
+
+    <!-- 白子渐变 -->
+    <radialGradient id="whiteStone" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="70%" stop-color="#EAEFF5"/>
+      <stop offset="100%" stop-color="#CDD5DF"/>
+    </radialGradient>
+
+    <!-- 阴影滤镜 -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <style>
+    /* 默认浅色模式 */
+    .icon-bg { fill: url(#bgLight); }
+    .grid-line { stroke: #B59E7A; stroke-width: 6; stroke-linecap: round; }
+    .star-point { fill: #8C7352; }
+
+    /* MCTS 树结构样式 */
+    .mcts-sub-path { stroke: #00F2FE; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0.45; }
+    .mcts-node-main { fill: #00F2FE; }
+    .mcts-node-sub { fill: #4FACFE; opacity: 0.6; }
+
+    /* 手动控制类名 */
+    .ai-go-icon.dark-mode .icon-bg { fill: url(#bgDark); }
+    .ai-go-icon.dark-mode .grid-line { stroke: #2C3540; }
+    .ai-go-icon.dark-mode .star-point { fill: #4A5868; }
+  </style>
+
+  <!-- 1. 图标圆角背景 -->
+  <rect class="icon-bg" x="32" y="32" width="448" height="448" rx="105" />
+
+  <!-- 2. 围棋棋盘网格 (3x3 局域) -->
+  <g class="board-grid">
+    <!-- 横线 -->
+    <line x1="128" y1="160" x2="384" y2="160" class="grid-line" />
+    <line x1="128" y1="256" x2="384" y2="256" class="grid-line" />
+    <line x1="128" y1="352" x2="384" y2="352" class="grid-line" />
+    <!-- 竖线 -->
+    <line x1="160" y1="128" x2="160" y2="384" class="grid-line" />
+    <line x1="256" y1="128" x2="256" y2="384" class="grid-line" />
+    <line x1="352" y1="128" x2="352" y2="384" class="grid-line" />
+
+    <!-- 星位点 -->
+    <circle cx="256" cy="256" r="6" class="star-point" />
+  </g>
+
+  <!-- 3. MCTS 搜索树结构 (由根节点向外演化出的分支) -->
+  <g class="mcts-tree">
+    <!-- 次要剪枝分支 (薄弱探索路径) -->
+    <path d="M 160 352 L 195 280 L 256 256" class="mcts-sub-path" />
+    <path d="M 195 280 L 160 256" class="mcts-sub-path" stroke-dasharray="4 4" />
+    <path d="M 256 256 L 310 210 L 352 256" class="mcts-sub-path" />
+    <path d="M 310 210 L 290 160" class="mcts-sub-path" stroke-dasharray="4 4" />
+
+    <!-- 树节点 (MCTS 状态节点) -->
+    <!-- 次级节点 -->
+    <circle cx="195" cy="280" r="5" class="mcts-node-sub" />
+    <circle cx="160" cy="256" r="4" class="mcts-node-sub" />
+    <circle cx="310" cy="210" r="5" class="mcts-node-sub" />
+    <circle cx="290" cy="160" r="4" class="mcts-node-sub" />
+    <circle cx="352" cy="256" r="4" class="mcts-node-sub" />
+
+    <!-- 核心决策节点 (中心发光节点) -->
+    <circle cx="256" cy="256" r="16" fill="#00F2FE" opacity="0.25" />
+    <circle cx="256" cy="256" r="7" class="mcts-node-main" />
+  </g>
+
+  <!-- 4. 围棋棋子 (落子在 MCTS 树的关键叶子节点上) -->
+  <g class="stones" filter="url(#dropShadow)">
+    <!-- 黑子 (根节点 & 终局分支) -->
+    <circle cx="160" cy="352" r="48" fill="url(#blackStone)" />
+    <circle cx="352" cy="160" r="48" fill="url(#blackStone)" />
+
+    <!-- 白子 (胜率推荐落子点) -->
+    <circle cx="160" cy="160" r="48" fill="url(#whiteStone)" />
+  </g>
+</svg>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo 围棋</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F1E8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14161A">
+<link rel="icon" type="image/svg+xml" sizes="any" href="favicon.svg">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+<h1 class="sr-only" id="page-title">对弈</h1>
+
+<!-- 全局常驻顶栏（跨路由不重建；引擎胶囊/音效/主题按钮，T5.4 数据驱动化） -->
+<header class="topbar">
+  <div class="row1">
+    <!-- 品牌 Logo：CSS 背景按 data-theme 选切 title.svg / title-dark.svg（iOS 下 img 内 SVG 媒体查询不生效）
+         点击进入 GitHub 仓库主页；href 由 app.js 按 /admin/app 的 repo 动态修正（TGO_GITHUB_REPO 可覆盖） -->
+    <a class="brand" id="brand-link" href="https://github.com/yimuur/tGo" target="_blank" rel="noopener noreferrer" data-tip="打开 GitHub 仓库主页" aria-label="打开 tGo GitHub 仓库主页">
+      <span class="brand-logo" role="img" aria-label="tGo 围棋"></span>
+    </a>
+    <div class="spacer"></div>
+    <button class="eng-pill" id="engine-pill" title="引擎详情：主机名/系统 · 内存利用率" aria-haspopup="dialog" aria-expanded="false">
+      <span class="dot s-init"></span><span class="eng-label">连接中</span>
+    </button>
+    <button class="icon-btn" id="mute-toggle" title="静音" aria-label="静音" aria-pressed="false">
+      <svg class="icon"><use href="#i-volume"/></svg>
+    </button>
+    <button class="icon-btn" id="theme-toggle" title="主题（浅/深）" aria-label="主题">
+      <svg class="icon"><use href="#i-sun"/></svg>
+    </button>
+  </div>
+  <div class="row2">
+    <nav class="main" aria-label="主导航">
+      <!-- data-route 必须与 route.js navKeyOf() 输出一致（复盘 list/review 两路由共用 'review'） -->
+      <a href="#/" data-route="game">对弈</a>
+      <a href="#/review" data-route="review">复盘</a>
+      <a href="#/admin" data-route="admin">管理</a>
+    </nav>
+    <a class="btn btn-primary top-cta" id="cta-create" href="#/create" data-cta="create">
+      <svg class="icon"><use href="#i-plus"/></svg>创建对局
+    </a>
+    <!-- 复盘视图：顶栏 [+创建对局] 原地演化为 [导入棋谱]（UI_UX §5.5.1 / §3.3；T6.7 接线）
+         注：按钮文本必须由标签节点承载（data-ref="ctaImportLabel"）——忙碌态仅改写标签；
+         若直接写 cta.textContent 会连 <svg> 图标一并抹掉（2026/09/19 修复，图标丢失） -->
+    <button class="btn btn-primary top-cta hidden" id="cta-import" type="button" data-cta="import" title="导入棋谱（SGF）">
+      <svg class="icon" aria-hidden="true"><use href="#i-sgf"/></svg><span data-ref="ctaImportLabel">导入棋谱</span>
+    </button>
+    <!-- 管理页：顶栏 [+创建对局] 原地演化为 [添盏清茶]（自愿赞助；长按 3 秒蓄力）
+         液体填充层由 CSS 驱动（--sponsor-charge），文本/图标保持在填充层之上 -->
+    <button class="btn btn-primary top-cta btn-sponsor hidden" id="cta-sponsor" type="button" data-cta="sponsor" data-tip="蓄力长按，以添清茶" aria-label="添盏清茶（长按 3 秒支持作者）">
+      <span class="sponsor-liquid" aria-hidden="true"></span>
+      <svg class="icon" aria-hidden="true"><use href="#i-tea"/></svg><span class="sponsor-label">添盏清茶</span>
+    </button>
+  </div>
+</header>
+
+<!-- 视图挂载点：视图负责设置 className（layout [kind]）与内容；skip-link 目标 #main -->
+<main class="layout" id="main" tabindex="-1"></main>
+
+<!-- Toast/Dialog/重连横幅等全局容器由 T5.4 注入 -->
+
+<script src="js/icons.js"></script>
+<script src="js/tooltip.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

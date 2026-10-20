@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · GameView Demo（T6.4 对弈工作台·基础流）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  .demo-layout { display: flex; gap: 18px; padding: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .demo-side { width: 300px; flex: none; display: flex; flex-direction: column; gap: 10px; }
+  .demo-main { flex: 1 1 640px; min-width: 0; }
+  .demo-log { font-size: 12px; color: var(--text-2); white-space: pre-wrap; min-height: 96px; }
+  .segctl, .switch-line { margin-top: 6px; }
+  .switch-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .demo-note { font-size: 12px; color: var(--text-3); line-height: 1.6; }
+</style>
+</head>
+<body>
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main>
+  <h1 style="font-size:20px;margin:14px 18px 0">对弈工作台 · GameView（T6.4 + T6.5）</h1>
+  <div class="muted" style="font-size:12px;margin:2px 18px 10px">
+    纯函数层由 <code>node --test tests/game-view.test.js / game-model.test.js / game-sidebar.test.js</code>
+    覆盖；本页用 <strong>脚本化 FakeServer</strong> 驱动真实 <code>GameView</code>（无 GPU/后端），供人工验收：
+    断点恢复 / 落子 / PASS / 悔棋（人机上限直通；人人需对方确认，热座回投 undo.request）/
+    提子数（C1 动画计数） / 认输 / 重开 / TURN_AI 胶囊与自动 start / 引擎降级警示 /
+    双 PASS→终局提示桥 / 结算取消继续对弈 / 移动端 ··· 菜单 / 沉浸模式；
+    <strong>T6.5：</strong> 对局信息卡 / 胜率目差曲线（断点 REST 回填 + 每手实时追加；右轴仅满量程+0）/
+    AI 支招（coaching.request→top5，含请求中/空态/过期；点击 [支招] 不自动展开抽屉） /
+    领地热力（ownership→Worker 量化） / 自动点评（<code>analysis.comment</code>：落子方视角标注、ΔS=目数变化、最近 2 手圆点） /
+    结算预判（双 PASS/认输 → <code>scoring.prediction</code>：预判死子 + 结果）
+    / 底部 [分析] 抽屉（≤1199；宽屏卡片并列两列、隐藏滚动条）与黑白胜率条（C16）；
+    信息行人人对弈显示「人人」，提子控件文字固定基线字号（棋子随宽度缩放）。
+  </div>
+
+  <div class="demo-layout">
+    <div class="demo-side">
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-play"/></svg>场景</h3>
+        <div class="segctl" id="seg-scene" style="flex-direction:column;align-items:stretch">
+          <button data-v="hh-empty" class="on">人人 · 空盘开局</button>
+          <button data-v="hh-cap">人人 · 吃子演示（C1 计数）</button>
+          <button data-v="hh-mid">人人 · 进行中（悔棋/认输演示）</button>
+          <button data-v="ha-humanB">人机 · 人类执黑（AI 后手）</button>
+          <button data-v="ha-humanW">人机 · 人类执白（AI 先行）</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-engine"/></svg>引擎态（切换实时生效）</h3>
+        <div class="segctl" id="seg-engine" style="flex-wrap:wrap">
+          <button data-v="IDLE" class="on">IDLE</button>
+          <button data-v="INIT">INIT</button>
+          <button data-v="DEAD">DEAD</button>
+          <button data-v="FATAL">FATAL</button>
+        </div>
+        <div class="demo-note" style="margin-top:6px">
+          DEAD/FATAL：人机棋盘灰化+警示条；人类仍可落子（AI 挂起）；恢复 IDLE 后自动 start 续行。
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0">控制</h3>
+        <button class="btn btn-secondary btn-sm" id="btn-reconnect" type="button">重连（模拟刷新恢复）</button>
+        <button class="btn btn-secondary btn-sm" id="btn-clear" type="button" style="margin-top:6px">清空 localStorage</button>
+        <div class="switch-line"><input type="checkbox" id="ck-sound" checked><label for="ck-sound">音效（假）</label></div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0">实时分析（T6.5）</h3>
+        <div class="segctl" style="flex-wrap:wrap">
+          <button id="demo-coach" type="button">请求支招 top5</button>
+          <button id="demo-terr" type="button">领地热力</button>
+          <button id="demo-terr-none" type="button">领地·无数据(null)</button>
+          <button id="demo-curve" type="button">追加曲线点</button>
+        </div>
+        <div class="demo-note" style="margin-top:6px">
+          说明：<b>[支招]/[领地]</b> 也可直接点棋盘底部按钮；[领地] 单击切换、双击开启
+          <b>每步自动</b>连续模式（U-17）。断点恢复会经 <code>GET /games/7/curve</code>
+          回填历史曲线；落子后 FakeServer 延时推送 <code>analysis.curve</code>。
+          引擎 DEAD 时支招/领地灰置（降级），恢复后自动接续。
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0">行为日志</h3>
+        <div class="demo-log" id="demo-log" role="status"></div>
+      </div>
+    </div>
+
+    <div class="demo-main" id="demo-main"></div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+  import { createStore } from '../js/core/state.js';
+  import { createLocalStore, LS_KEYS, memoryStorage } from '../js/core/localstore.js';
+  import { replayStones } from '../js/core/game-model.js';
+  import { confirmAbortable } from '../js/core/dialog.js';
+  import { createView } from '../js/views/game-view.js';
+
+  const logEl = document.getElementById('demo-log');
+  const log = (t) => {
+    const line = `${new Date().toLocaleTimeString()} · ${t}`;
+    logEl.textContent = `${line}\n` + logEl.textContent.slice(0, 800);
+    console.log('[game-demo]', t);
+  };
+
+  /* ==================== 内存本地存储 ==================== */
+  const ls = createLocalStore(memoryStorage());
+  ls.set(LS_KEYS.onboarded, true);
+
+  /* ==================== 假后端（FakeServer） ==================== */
+  const N = 19;
+  // 预置「人人·进行中」主谱（部分乱序落子，供悔棋/认输演示；非吃子场景）
+  const MID_MOVES = [
+    [1, 'B', 3, 3], [2, 'W', 15, 15], [3, 'B', 3, 15], [4, 'W', 15, 3],
+    [5, 'B', 9, 9], [6, 'W', 3, 9], [7, 'B', 15, 9], [8, 'W', 9, 3],
+    [9, 'B', 9, 15], [10, 'W', 6, 6],
+  ];
+  // 「人人·吃子演示」：黑(3,3) 仅剩 (4,3) 一口气；轮到白 → 落 (4,3) 提黑 1 子
+  // （C1 提子计数 +1 动画 / 提子移除动画演示）
+  const CAP_MOVES = [
+    [1, 'B', 3, 3], [2, 'W', 2, 3], [3, 'B', 6, 6], [4, 'W', 3, 2],
+    [5, 'B', 9, 9], [6, 'W', 3, 4], [7, 'B', 0, 0],
+  ];
+  const toMoves = (rows) => rows.map(([move_no, color, x, y]) => ({ move_no, color, x, y, is_pass: false }));
+
+  let scene = 'hh-empty';
+  let engineState = 'IDLE';
+  let soundOn = true;
+
+  const store = createStore();
+
+  function broadcast(type, data) {
+    store.dispatch({ type, data });
+  }
+
+  function delay(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  /** 由 moves + 让子推导当前占用（利用 replayStones）。 */
+  function occupied(moves, handicap) {
+    return new Set(replayStones({ size: N, handicap, moves }).map((s) => `${s.x},${s.y}`));
+  }
+
+  /** 逐手回放计算黑/白提子数（复用 replayStones 吃子模拟，服务端唯一事实源）。 */
+  function captureCounts(moves, handicap) {
+    // srv.moves 为后端蛇形字段；replayStones 需 camelCase（moveNo）作截断/排序
+    const norm = (Array.isArray(moves) ? moves : [])
+      .map((m) => ({
+        moveNo: Number(m.move_no),
+        color: m.color,
+        x: Number(m.x),
+        y: Number(m.y),
+        isPass: Boolean(m.is_pass),
+      }))
+      .sort((a, b) => a.moveNo - b.moveNo);
+    let black = 0;
+    let white = 0;
+    let prev = replayStones({ size: N, handicap, moves: [] });
+    for (const m of norm) {
+      if (m.isPass || m.x === null || Number.isNaN(m.x) || m.x === undefined
+        || m.y === null || Number.isNaN(m.y) || m.y === undefined) continue;
+      const next = replayStones({ size: N, handicap, moves: norm, upto: m.moveNo });
+      const count = (stones, color) => stones.filter((s) => s.color === color).length;
+      const mover = m.color === 'W' || m.color === 'white' ? 'white' : 'black';
+      const opponent = mover === 'black' ? 'white' : 'black';
+      const taken = Math.max(0, count(prev, opponent) - count(next, opponent));
+      if (mover === 'black') black += taken;
+      else white += taken;
+      prev = next;
+    }
+    return { black, white };
+  }
+
+  function scenarioBase() {
+    if (scene === 'hh-empty') return { mode: 'human_human', humanColor: null, status: 'created', moves: [], handicap: 0, undoCount: 0 };
+    if (scene === 'hh-cap') return { mode: 'human_human', humanColor: null, status: 'active', moves: toMoves(CAP_MOVES), handicap: 0, undoCount: 0 };
+    if (scene === 'hh-mid') {
+      return { mode: 'human_human', humanColor: null, status: 'active', moves: toMoves(MID_MOVES), handicap: 0, undoCount: 2 };
+    }
+    if (scene === 'ha-humanB') return { mode: 'human_ai', humanColor: 'B', status: 'created', moves: [], handicap: 0, undoCount: 0 };
+    // ha-humanW（AI 先行）
+    return { mode: 'human_ai', humanColor: 'W', status: 'created', moves: [], handicap: 0, undoCount: 0 };
+  }
+
+  function gameRow(base) {
+    const caps = captureCounts(base.moves, base.handicap);
+    return {
+      id: 7, mode: base.mode, board_size: N, rules: 'chinese', komi: 7.5,
+      handicap: base.handicap, human_color: base.humanColor, status: base.status,
+      black_name: base.mode === 'human_ai' && base.humanColor === 'W' ? 'AI（你执白）' : '真人',
+      white_name: base.mode === 'human_ai' && base.humanColor === 'B' ? 'AI' : '真人',
+      ai_style: 'standard', ai_level: 5, adaptive_enabled: 0,
+      coaching_enabled: 1,  // 自动点评演示（BUG-016）：信息行徽章 + 当前手点评
+      undo_count: base.undoCount, black_captures: caps.black, white_captures: caps.white,
+      last_move_no: base.moves.length, result: null, favorite: 0,
+    };
+  }
+
+  function statePayload(base) {
+    const last = base.moves.length ? base.moves[base.moves.length - 1].move_no : 0;
+    const nextColor = base.handicap > 0 ? (last % 2 === 0 ? 'W' : 'B') : (last % 2 === 0 ? 'B' : 'W');
+    let turn = null;
+    if (base.mode === 'human_ai' && base.status === 'active') turn = nextColor === (base.humanColor === 'B' ? 'W' : 'B') ? 'TURN_AI' : 'TURN_HUMAN';
+    const row = gameRow(base);
+    return {
+      game_id: row.id, status: base.status, game: row,
+      moves: base.moves, next_color: nextColor, turn,
+      analysis_complete: false, coverage: { done: 0, total: last + 1 },
+    };
+  }
+
+  function aiColor(base) { return base.humanColor === 'B' ? 'W' : 'B'; }
+  function engineUsable() { return engineState !== 'DEAD' && engineState !== 'FATAL'; }
+
+  // ==================== T6.5 演示：曲线 / 支招 / 领地 ====================
+  function curLastNo() {
+    return srv.moves.length ? srv.moves[srv.moves.length - 1].move_no : 0;
+  }
+  /** 确定性历史曲线（0..n 黑方视角；服务端每手 P1 落库推送的等价物）。 */
+  function curveFor(n) {
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      pts.push({
+        move_no: i,
+        winrate: Math.round((50 + 9 * Math.sin(i / 2.2) + ((i % 5) - 2) * 1.6) * 10) / 10,
+        score_lead: Math.round((Math.sin(i / 2.2) * 4.2 + (i % 3)) * 10) / 10,
+      });
+    }
+    return pts;
+  }
+  /** 领地 raw [-1,1]：左黑右白的分区热力（正=黑；负=白）。 */
+  function buildOwnership() {
+    const n = N;
+    const raw = [];
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const d = (x - (n - 1) / 2) / (n - 1); // -0.5..0.5
+        const v = Math.max(-0.88, Math.min(0.88, -d * 1.35 + Math.sin(y / 2.4) * 0.06));
+        raw.push(Math.round(v * 1000) / 1000);
+      }
+    }
+    return raw;
+  }
+  /** 落子后按引擎可用延时推送当前手曲线（服务端每手 P1 管线的演示等价物）。 */
+  function scheduleCurve(move_no) {
+    if (!engineUsable() || move_no <= 0) return;
+    setTimeout(() => {
+      const p = curveFor(move_no).pop();
+      log(`analysis.curve → main:${move_no}（黑胜率 ${p.winrate}% · 目差 ${p.score_lead}）`);
+      broadcast('analysis.curve', { move_no, winrate: p.winrate, score_lead: p.score_lead });
+    }, 550);
+  }
+
+  // ---- 每个场景独立一份「服务端」状态；重连 = 保留状态推送 game.state ----
+  let srv = scenarioBase();
+  let view = null;
+  // 人人悔棋申请（热座单连接：请求方=本连接，需同屏「对方确认」）
+  let undoPending = null; // { request_id, color, steps }
+  let undoSeq = 0;
+
+  function resetScenario(next) {
+    scene = next;
+    srv = scenarioBase();
+    undoPending = null;
+    store.dispatch({ type: 'engine.status', data: { state: engineState, progress: null } });
+  }
+
+  /** 控制类消息（真实路径经 ws-client CONTROL_TYPES → onControl → tgo:game-msg）。 */
+  function controlMsg(type, data) {
+    window.dispatchEvent(new CustomEvent('tgo:game-msg', { detail: { type, data } }));
+  }
+
+  const errorMsg = (code, message) => window.dispatchEvent(new CustomEvent('tgo:error', {
+    detail: { code, message, channel: 'game' },
+  }));
+
+  /** 执行悔棋（撤 steps 步；仅人机计入上限）。 */
+  async function applyUndo(steps) {
+    const undoneMoveNo = srv.moves[srv.moves.length - 1].move_no;
+    const newLastNo = Math.max(0, undoneMoveNo - steps);
+    srv.moves = srv.moves.filter((m) => m.move_no <= newLastNo);
+    if (srv.mode === 'human_ai') srv.undoCount += steps;
+    log(`悔棋执行：撤 ${steps} 步（move ${undoneMoveNo} → ${newLastNo}）`);
+    broadcast('move.undone', { move_no: undoneMoveNo, new_last_move_no: newLastNo, steps });
+    await pushState();
+  }
+
+  async function pushState() {
+    broadcast('game.state', statePayload(srv));
+  }
+
+  async function handleStart() {
+    if (srv.status === 'created') {
+      srv.status = 'active';
+      if (srv.mode === 'human_ai' && nextColorOf(srv) === aiColor(srv)) {
+        await aiMoveBroadcast();
+      }
+      await pushState();
+      return;
+    }
+    if (srv.mode === 'human_ai' && srv.status === 'active' && nextColorOf(srv) === aiColor(srv)) {
+      await aiMoveBroadcast();
+      await pushState();
+      return;
+    }
+    // 其它情况（人人/轮到人类）：无需开局或 AI 落子
+    window.dispatchEvent(new CustomEvent('tgo:error', {
+      detail: { code: 'ILLEGAL_ACTION', message: '当前无需开局或 AI 落子', channel: 'game' },
+    }));
+  }
+
+  function nextColorOf(base) {
+    const last = base.moves.length ? base.moves[base.moves.length - 1].move_no : 0;
+    return base.handicap > 0 ? (last % 2 === 0 ? 'W' : 'B') : (last % 2 === 0 ? 'B' : 'W');
+  }
+
+  function appendMove(color, x, y, isPass = false) {
+    const move_no = (srv.moves.length ? srv.moves[srv.moves.length - 1].move_no : 0) + 1;
+    srv.moves.push({ move_no, color, x, y, is_pass: isPass });
+    if (srv.status === 'created') srv.status = 'active';
+    scheduleCurve(move_no);
+    scheduleComment(move_no);
+    return { move_no, color, x, y, is_pass: isPass };
+  }
+
+  /**
+   * 点评演示（2026/09/11）：对弈页点评由每手标准分析派送
+   * （``analysis.comment``，落子方视角，ΔS=score_delta 目数变化）；
+   * 前端保留最近 2 手圆点。演示：延时 400ms 后推送第 n 手点评
+   * （PASS/首手无标准分析对照则不推）。
+   */
+  function scheduleComment(move_no) {
+    const played = srv.moves.find((m) => m.move_no === move_no);
+    if (!played || played.is_pass || !gameRow(srv).coaching_enabled) return;
+    setTimeout(() => {
+      const grade = move_no % 3 === 0 ? 'blunder' : move_no % 2 === 0 ? 'good' : 'mistake';
+      broadcast('analysis.comment', {
+        move_no,
+        color: played.color,
+        x: played.x,
+        y: played.y,
+        grade,
+        delta_winrate: grade === 'blunder' ? -16.4 : grade === 'mistake' ? -9.2 : 1.2,
+        score_delta: grade === 'blunder' ? -5.1 : grade === 'mistake' ? -2.8 : 0.3,
+      });
+      log(`analysis.comment → main:${move_no}（点评 ${grade}）`);
+    }, 400);
+  }
+
+  /** 结算预判演示（scoring.prediction：预判死子 + GTP final_score 等价结果）。 */
+  function pushSettlementPrediction({ finished }) {
+    const usable = engineUsable();
+    const last = curLastNo();
+    const payload = {
+      game_id: 7,
+      move_no: last,
+      engine: usable,
+      reason: usable ? null : 'engine_unavailable',
+      finished,
+      dead_points: usable ? [[3, 3], [15, 15]] : [],
+      result: usable ? (finished ? 'W+2.5' : 'B+4.5') : null,
+      black_score: null,
+      white_score: null,
+      lead: null,
+    };
+    setTimeout(() => {
+      broadcast('scoring.prediction', payload);
+      log(`scoring.prediction → ${usable ? `预判 ${payload.result}（死子 ${payload.dead_points.length}）` : '引擎不可用降级'}`);
+    }, 500);
+  }
+
+  async function aiMoveBroadcast() {
+    // 在未被占用的近角选点作为 AI 落子（演示用，非最优）
+    const occ = occupied(srv.moves, srv.handicap);
+    let pick = null;
+    outer:
+    for (const [x, y] of [[15, 3], [3, 15], [9, 3], [15, 9], [3, 3], [6, 6]]) {
+      if (!occ.has(`${x},${y}`)) { pick = [x, y]; break outer; }
+    }
+    if (!pick) pick = [9, 9];
+    await delay(500);
+    const mv = appendMove(aiColor(srv), pick[0], pick[1], false);
+    broadcast('move.applied', mv);
+    return mv;
+  }
+
+  const fakeHub = {
+    gameId: null,
+    connectGame(id) {
+      this.gameId = id;
+      log(`connect /ws/games/${id} → 推送 game.state（模拟 restore.request）`);
+      setTimeout(() => {
+        pushState();
+        // 重连/刷新补推：当前手点评 + 结算预判（服务端 _send_resume_extras 等价）
+        const last = curLastNo();
+        if (last > 0) scheduleComment(last);
+        if (srv.status === 'scoring') pushSettlementPrediction({ finished: true });
+      }, 120);
+    },
+    closeGame() {
+      log('close game channel');
+      this.gameId = null;
+    },
+    sendGame(type, data) {
+      log(`→ send ${type} ${data ? JSON.stringify(data) : ''}`);
+      handle(type, data || {});
+      return 1;
+    },
+  };
+
+  async function handle(type, data) {
+    const last = () => srv.moves[srv.moves.length - 1];
+    try {
+      if (type === 'play') {
+        const occ = occupied(srv.moves, srv.handicap);
+        const key = `${data.x},${data.y}`;
+        if (occ.has(key)) {
+          store.dispatch({ type: 'error' });
+          window.dispatchEvent(new CustomEvent('tgo:error', { detail: { code: 'ILLEGAL_MOVE', message: '该点已有棋子', channel: 'game' } }));
+          return;
+        }
+        const color = srv.mode === 'human_ai' ? srv.humanColor : nextColorOf(srv);
+        if (srv.mode === 'human_ai' && color !== srv.humanColor) {
+          window.dispatchEvent(new CustomEvent('tgo:error', { detail: { code: 'ILLEGAL_ACTION', message: '当前为 AI 回合', channel: 'game' } }));
+          return;
+        }
+        if (srv.mode === 'human_ai' && nextColorOf(srv) !== srv.humanColor) {
+          window.dispatchEvent(new CustomEvent('tgo:error', { detail: { code: 'ILLEGAL_ACTION', message: '等待 AI 落子', channel: 'game' } }));
+          return;
+        }
+        const mv = appendMove(color, data.x, data.y, false);
+        broadcast('move.applied', mv);
+        // 人机 + 轮到 AI：引擎可用时服务端同步续行；否则 TURN_AI 挂起（等引擎恢复→自动 start）
+        if (srv.mode === 'human_ai' && nextColorOf(srv) === aiColor(srv) && engineUsable()) {
+          await aiMoveBroadcast();
+        }
+        await pushState();
+        return;
+      }
+      if (type === 'pass') {
+        const color = srv.mode === 'human_ai' ? srv.humanColor : nextColorOf(srv);
+        if (srv.mode === 'human_ai' && nextColorOf(srv) !== srv.humanColor) {
+          window.dispatchEvent(new CustomEvent('tgo:error', { detail: { code: 'ILLEGAL_ACTION', message: '等待 AI 落子', channel: 'game' } }));
+          return;
+        }
+        const mv = appendMove(color, null, null, true);
+        broadcast('move.applied', mv);
+        const mvs = srv.moves;
+        if (mvs.length >= 2 && mvs[mvs.length - 1].is_pass && mvs[mvs.length - 2].is_pass) {
+          srv.status = 'scoring';
+          log('双 PASS → SCORING（终局提示桥）');
+          pushSettlementPrediction({ finished: true });
+        } else if (srv.mode === 'human_ai' && nextColorOf(srv) === aiColor(srv) && engineUsable()) {
+          await aiMoveBroadcast();
+        }
+        await pushState();
+        return;
+      }
+      if (type === 'undo') {
+        if (!srv.moves.length) {
+          errorMsg('ILLEGAL_ACTION', '无子可悔');
+          return;
+        }
+        if (srv.mode === 'human_ai') {
+          // 人机对弈：直通执行（ISSUE-039 上限仅人机作用域；请求方=人类固定撤 2 步）
+          const steps = 2;
+          if (srv.undoCount + steps > 5) {
+            errorMsg('UNDO_LIMIT_REACHED', '悔棋次数已达上限');
+            return;
+          }
+          await applyUndo(steps);
+          return;
+        }
+        // 人人对弈（热座单连接演示）：悔棋不设限、需同屏「对方确认」
+        // 2026/09/06 修订：仅单步悔棋（只撤最后一手）
+        if (undoPending) {
+          // 申请方再次发 undo = 撤回
+          const reqId = undoPending.request_id;
+          undoPending = null;
+          log(`悔棋申请撤回（request ${reqId}）`);
+          controlMsg('undo.declined', { request_id: reqId, reason: 'withdrawn' });
+          return;
+        }
+        const requester = nextColorOf(srv);
+        const lastM = srv.moves[srv.moves.length - 1];
+        const steps = 1; // 人人：仅单步
+        const reqId = ++undoSeq;
+        const base_move_no = lastM.move_no;
+        undoPending = { request_id: reqId, color: requester, steps };
+        log(`悔棋申请创建（request ${reqId} · ${requester} 撤 ${steps} 步）→ 回投本机确认`);
+        controlMsg('undo.request', { request_id: reqId, color: requester, steps, base_move_no });
+        return;
+      }
+      if (type === 'undo.respond') {
+        if (srv.mode === 'human_ai' || !undoPending || undoPending.request_id !== Number(data.request_id)) {
+          errorMsg('ILLEGAL_ACTION', '悔棋申请不存在或已处理');
+          return;
+        }
+        const p = undoPending;
+        undoPending = null;
+        if (!data.accept) {
+          log(`对端拒绝悔棋（request ${p.request_id}）`);
+          controlMsg('undo.declined', { request_id: p.request_id, reason: 'declined' });
+          return;
+        }
+        log(`对端同意悔棋（request ${p.request_id}）`);
+        await applyUndo(p.steps);
+        return;
+      }
+      if (type === 'resign') {
+        if (srv.status !== 'active') return;
+        const color = srv.mode === 'human_ai' ? srv.humanColor : nextColorOf(srv);
+        const winner = color === 'B' ? 'W' : 'B';
+        srv.status = 'finished';
+        srv.result = `${winner}+Resign`;
+        broadcast('game.finished', { result: srv.result, black_score: null, white_score: null });
+        // 认输无 move.applied 重播（BUG：末手重播动画）；追加结算预判演示
+        pushSettlementPrediction({ finished: false });
+        await pushState();
+        return;
+      }
+      if (type === 'restart') {
+        if (srv.status !== 'active') return;
+        srv.moves = [];
+        srv.status = 'created';
+        srv.undoCount = 0;
+        log('重开：清空落子/悔棋计数归零 → created');
+        await pushState();
+        return;
+      }
+      if (type === 'start') {
+        await handleStart();
+        return;
+      }
+      if (type === 'scoring.cancel') {
+        if (srv.status !== 'scoring') return;
+        srv.status = 'active';
+        await pushState();
+        return;
+      }
+      if (type === 'coaching.request') {
+        if (!engineUsable()) {
+          errorMsg('ENGINE_DEAD', '引擎不可用：支招降级');
+          return;
+        }
+        const cur = curLastNo();
+        log(`coaching.request → main:${cur}（模拟深度分析 P2…）`);
+        await delay(900);
+        const base = curveFor(cur).pop();
+        // 2026/09/11：支招值按**当前执色方**视角输出（服务端输出边界换算的等价物），附 ``side``；
+        // 推荐行 = 该点相对当前局面的改善（白方回合时符号相反）。
+        const side = nextColorOf(srv);
+        const sideTag = side === 'W' ? '白' : '黑';
+        const toSide = (v) => Math.round((side === 'W' ? 100 - v : v) * 10) / 10;
+        const toSideLead = (v) => (side === 'W' ? -v : v);
+        const baseWinrate = toSide(base ? base.winrate : 50);
+        const baseScore = toSideLead(base ? base.score_lead : 0);
+        const cands = [[3, 3], [15, 15], [3, 15], [15, 3], [9, 9]].map(([x, y], i) => ({
+          x,
+          y,
+          winrate: Math.round((baseWinrate + 6 - i * 1.4) * 10) / 10,
+          score_lead: Math.round((baseScore + 2.8 - i * 0.7) * 10) / 10,
+          visits: 1200 - i * 190,
+          pv: [`${'ABCDEFGHJKLMNOPQRST'[x]}${N - y}`, `${'ABCDEFGHJKLMNOPQRST'[y]}${N - x}`],
+        }));
+        broadcast('coaching.top5', {
+          move_no: cur,
+          side, // 当前执色方视角（黑方回合=B，白方回合=W）
+          base_winrate: baseWinrate,
+          moves: cands,
+        });
+        log(`coaching.top5 → ${cands.length} 条（${sideTag}方视角 · vs 当前局胜率 ${baseWinrate}%）`);
+        return;
+      }
+      if (type === 'ownership.request') {
+        if (!engineUsable()) {
+          errorMsg('ENGINE_DEAD', '引擎不可用：领地降级');
+          return;
+        }
+        const target = data.move_no != null ? Number(data.move_no) : curLastNo();
+        log(`ownership.request → main:${target}（模拟标准分析 P1…）`);
+        await delay(450);
+        broadcast('position.ownership', {
+          position_key: `main:${target}`,
+          move_no: target,
+          ownership: buildOwnership(),
+        });
+        log(`position.ownership → main:${target}（n² 热力推送）`);
+        return;
+      }
+    } catch (err) {
+      log(`FakeServer 异常: ${err.message}`);
+    }
+  }
+
+  /* ==================== demo API（恢复流/悔棋上限） ==================== */
+  const demoApi = {
+    async get(path) {
+      await delay(60);
+      if (path === '/admin/config') return { data: { play: { max_undo: 5 } } };
+      if (/^\/games\/\d+\/curve$/.test(path)) return { data: curveFor(curLastNo()) };
+      if (path === '/games/active-latest') {
+        // 场景为空盘/created 时返回 null；进行中返回对局（含 fakeHub 当前对局）
+        if (srv.status === 'created' && srv.moves.length === 0 && srv.mode === 'human_human') return { data: null };
+        return { data: gameRow(srv) };
+      }
+      if (/^\/games\/\d+$/.test(path)) return { data: statePayload(srv) };
+      return { data: null };
+    },
+    async post(path) {
+      if (path === '/admin/engines/start') {
+        log('POST engines/start → 模拟引擎恢复（IDLE）');
+        await delay(300);
+        setEngineState('IDLE');
+        return { status: 202, accepted: true, data: { message: '引擎启动已受理' } };
+      }
+      return { status: 200, data: {} };
+    },
+  };
+
+  /* ==================== demo 视图宿主 ==================== */
+  const rootEl = document.getElementById('demo-main');
+
+  function fakeImmersive() {
+    const el = { on: false };
+    return {
+      enter() { el.on = true; document.body.classList.add('immersive'); ensureExit(); },
+      exit() { el.on = false; document.body.classList.remove('immersive'); document.querySelector('.demo-immersive-exit')?.remove(); },
+      toggle() { if (el.on) this.exit(); else this.enter(); },
+      isActive: () => el.on,
+    };
+  }
+  function ensureExit() {
+    const b = document.createElement('button');
+    b.className = 'btn btn-secondary demo-immersive-exit immersive-exit';
+    b.textContent = '退出沉浸';
+    b.style.position = 'fixed'; b.style.left = '12px'; b.style.top = '12px'; b.style.zIndex = 99;
+    b.addEventListener('click', () => immersive.exit());
+    document.body.appendChild(b);
+  }
+  const immersive = fakeImmersive();
+
+  const fakeAudio = { play(name) { if (soundOn) log(`♪ ${name}`); } };
+
+  function mountView() {
+    if (view && typeof view.destroy === 'function') view.destroy();
+    view = createView(rootEl, {
+      route: { name: 'game', label: '对弈', params: {}, query: {} },
+      store,
+      api: demoApi,
+      hub: fakeHub,
+      ls,
+      audio: fakeAudio,
+      immersive,
+      toast: ({ code, message, level, text }) => log(`Toast(${level || (code || 'info')}): ${text || message || code}`),
+      confirm: ({ title, okText }) => window.confirm(`${title}\n${okText ? `[${okText}] 确定？` : ''}`),
+      confirmAbortable,
+      nav: (h) => log(`nav → ${h}`),
+      onEngineRetry: null,
+    });
+    view.render();
+  }
+
+  /* ==================== 场景/引擎控制 ==================== */
+  function setEngineState(v) {
+    engineState = v;
+    store.dispatch({ type: 'engine.status', data: { state: v, progress: null } });
+    log(`引擎态 → ${v}`);
+    // DEAD→IDLE 恢复：若游戏 AI 待行，GameView 会自动 send start（引擎恢复续行）
+  }
+
+  function bindSeg(sel, onPick) {
+    const box = document.getElementById(sel);
+    box.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        box.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        onPick(b.dataset.v);
+      });
+    });
+  }
+
+  bindSeg('seg-engine', (v) => {
+    setEngineState(v);
+  });
+
+  bindSeg('seg-scene', (v) => {
+    resetScenario(v);
+    log(`场景 → ${v}`);
+    // 清最近记录 → GameView 从「active-latest / created 场景」走真实恢复流
+    ls.remove(LS_KEYS.recent);
+    mountView();
+  });
+
+  document.getElementById('btn-reconnect').addEventListener('click', () => {
+    log('模拟刷新：重新挂载 GameView（走 localStorage/active-latest 恢复）');
+    mountView();
+  });
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    ls.remove(LS_KEYS.recent);
+    log('已清空 localStorage（下次挂载走 active-latest）');
+  });
+  document.getElementById('ck-sound').addEventListener('change', (e) => { soundOn = e.target.checked; });
+
+  /* ---- T6.5 演示按钮（曲线/领地空态等直接广播；支招/领地请求也走底部产品按钮） ---- */
+  document.getElementById('demo-coach').addEventListener('click', () => {
+    fakeHub.sendGame('coaching.request');
+  });
+  document.getElementById('demo-terr').addEventListener('click', () => {
+    fakeHub.sendGame('ownership.request', {});
+  });
+  document.getElementById('demo-terr-none').addEventListener('click', () => {
+    const cur = curLastNo();
+    log(`demo：position.ownership → main:${cur}（ownership: null = 无数据空态）`);
+    broadcast('position.ownership', { position_key: `main:${cur}`, move_no: cur, ownership: null });
+  });
+  document.getElementById('demo-curve').addEventListener('click', () => {
+    const n = curLastNo();
+    if (n <= 0) {
+      log('曲线：当前无落子（第 0 手无分析），先落一子');
+      return;
+    }
+    const p = curveFor(n).pop();
+    broadcast('analysis.curve', { move_no: n, winrate: p.winrate, score_lead: p.score_lead });
+    log(`demo：analysis.curve → main:${n}（黑胜率 ${p.winrate}% · 目差 ${p.score_lead}）`);
+  });
+
+  // 初始：人人空盘
+  ls.remove(LS_KEYS.recent);
+  store.dispatch({ type: 'engine.status', data: { state: engineState, progress: null } });
+  mountView();
+
+  // 验收调试句柄（供 Playwright/人工控制台检视）
+  window.__tgoDemo = {
+    store, srv: () => srv, scene: () => scene, log, resetScenario, setEngineState,
+    send: (t, d) => fakeHub.sendGame(t, d || {}), hub: fakeHub,
+  };
+  window.__errs = [];
+  window.addEventListener('error', (e) => { window.__errs.push(String(e.message || e)); });
+  window.addEventListener('unhandledrejection', (e) => { window.__errs.push(`REJ ${String(e.reason && e.reason.message || e.reason)}`); });
+</script>
+</body>
+</html>

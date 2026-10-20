@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · 棋盘留白方案 demo（A/B/C/D/E/F）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+/* demo 专用（非产品样式；产品样式零改动） */
+.demo-wrap { max-width: 1680px; }
+.demo-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .demo-grid { grid-template-columns: 1fr; } }
+.panel-card { padding: 14px; position: sticky; top: 12px; }
+.panel-card h3 { margin-top: 0; }
+.field { margin-bottom: 12px; }
+.field .label { font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-glass); color: var(--text-1);
+  font-size: 12px; cursor: pointer; user-select: none;
+}
+.chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip input { display: none; }
+.preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+#stage { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.frame-card { margin: 0; }
+.frame-card figcaption { font-size: 12px; color: var(--text-2); margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.frame-card figcaption b { color: var(--text-1); font-size: 13px; }
+.frame-card figcaption .num { font-variant-numeric: tabular-nums; }
+.frame-box { position: relative; overflow: hidden; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-base); box-shadow: var(--shadow-card); }
+.frame-box iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: var(--bg-base); }
+.hint { font-size: 12px; color: var(--text-3); line-height: 1.7; }
+table.risk { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.risk th, table.risk td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.risk th { color: var(--text-2); font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost" href="board-demo.html">棋盘组件 demo</a>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main class="layout demo-wrap" style="padding-top:12px">
+  <h1 style="font-size:20px;margin:0 0 4px">棋盘留白方案 demo（方案 1 / 方案 2 / 建议）</h1>
+  <div class="hint" style="margin-bottom:6px">
+    帧页 = 真实对弈页骨架（复用产品类名与 <code>app.css</code>，产品布局规则原样生效）+ 真实 <code>GameBoard</code>；
+    每个 iframe 的视口尺寸即“模拟设备”，故媒体查询/棋盘自适应与真机一致。<b>本 demo 不改动任何产品文件</b>。
+  </div>
+  <div class="hint" style="margin-bottom:14px;border-left:3px solid var(--accent);padding-left:10px">
+    <b>决策已落定（2026/09/22）：采用方案 B（整块木料）</b>并已实施到产品：木料面＝棋盘容器整幅、
+    木纹随棋盘一同缩放/平移（木纹随动），最外圈刻线可按 <code>--grid-outer-scale</code> 加粗。
+    因此本 demo 中 <b>A/B 变体现渲染相同</b>（产品已无“留白无木纹”状态），D/E/F 仅作历史参考；
+    各变体仍可用于回归检查“棋盘区与留白、浮板/背景”的观感。
+  </div>
+
+  <div class="demo-grid">
+    <!-- ---------------- 控制列 ---------------- -->
+    <section class="card panel-card">
+      <h3><svg class="icon"><use href="#i-params"/></svg>方案（可多选并排对比）</h3>
+      <div class="field">
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="field">
+        <div class="label">快捷对比</div>
+        <div class="preset-row">
+          <button class="btn btn-secondary btn-sm" data-preset="B,D">方案1 vs 方案2</button>
+          <button class="btn btn-secondary btn-sm" data-preset="C,D,E">方案2 三种材质</button>
+          <button class="btn btn-secondary btn-sm" data-preset="B,D,F">三种思路</button>
+          <button class="btn btn-ghost btn-sm" data-preset="ALL">全选</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">模拟视口</div>
+        <select class="input" id="vp" style="width:100%">
+          <option value="1440x900">1440 × 900（笔记本 16:10）</option>
+          <option value="1920x1080">1920 × 1080（桌面 16:9）</option>
+          <option value="1280x800">1280 × 800（小笔记本）</option>
+          <option value="1024x768">1024 × 768（平板横屏）</option>
+          <option value="390x844">390 × 844（手机竖屏）</option>
+          <option value="fit">跟随当前窗口（近似）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="label">显示</div>
+        <div class="chips">
+          <label class="chip" id="mode-page">整页（含顶栏/侧栏）<input type="radio" name="mode" value="page" checked></label>
+          <label class="chip" id="mode-focus">聚焦棋盘区<input type="radio" name="mode" value="focus"></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">主题 / 路数</div>
+        <div class="chips" id="theme-chips">
+          <label class="chip on" data-theme="light">浅色（榧木）</label>
+          <label class="chip" data-theme="dark">深色（檀木）</label>
+        </div>
+        <div class="chips" id="size-chips" style="margin-top:6px">
+          <label class="chip on" data-size="19">19 路</label>
+          <label class="chip" data-size="13">13 路</label>
+          <label class="chip" data-size="9">9 路</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">关键事实（由帧页实测回传）</div>
+        <div class="hint" id="facts">—</div>
+      </div>
+    </section>
+
+    <!-- ---------------- 帧舞台 ---------------- -->
+    <div>
+      <div id="stage"></div>
+
+      <section class="card" style="margin-top:16px;padding:14px">
+        <h3><svg class="icon"><use href="#i-info"/></svg>各方案的产品改动面 / 风险（供决策参考）</h3>
+        <table class="risk">
+          <tr><th>方案</th><th>材质关系</th><th>产品改动点</th><th>风险 / 代价</th></tr>
+          <tr>
+            <td><b>A 现状</b></td>
+            <td>矩形=木料（留白无木纹）；方形画布居中</td>
+            <td>无（对照）</td>
+            <td>留白与棋盘同色但无木纹 → 观感“半截木料”</td>
+          </tr>
+          <tr>
+            <td><b>B 方案 1</b></td>
+            <td>整块矩形木料（木纹贯穿）；棋盘仍居中</td>
+            <td>木纹绘制从「棋盘静态层」上移到「容器级整块木料层」：新增一层木料纹画布（或容器背景层），棋盘静态层不再自绘木纹（避免同图案叠加加深）</td>
+            <td>需保证两层木纹同源同尺度；棋盘“放大（board zoom）”时留白层的纹理缩放关系要定义（建议：留白层随画布同步缩放）</td>
+          </tr>
+          <tr>
+            <td><b>C/D/E 方案 2</b></td>
+            <td>方形木料板 **浮起** 于背景面（布/台面）之上</td>
+            <td>棋盘容器由矩形的 <code>.board-wrap</code> 改为方形 <code>.board-panel</code>（<code>.board-wrap</code> 退为背景面、去阴影）；台面材质新增 token（页面底色/毡布/同料压暗三档）</td>
+            <td>改动面大于 B：需核对所有以 <code>.board-wrap</code> 为锚的 UI/代码（toast 的棋盘查询、终局提示桥、画布定位兜底等）→ 顺带收益：容器恒方形，这些锚点不再错位</td>
+          </tr>
+          <tr>
+            <td><b>F 建议</b></td>
+            <td>不留留白：容器收到正方形，两侧露页面背景</td>
+            <td>仅改容器尺寸规则（<code>.board-wrap</code> 由“宽度驱动”改“高度驱动 + 居中”）</td>
+            <td>改动最小；“两侧空”由页面背景承担，不再是任何“面”</td>
+          </tr>
+        </table>
+        <div class="hint" style="margin-top:10px">
+          ES/C/D/F 差异仅为「背景面材质」：C＝页面底色（不引入新材质）、D＝深色毡布（最像“真实棋盘垫布”）、
+          E＝同料压暗台面（木料延续 + 高度感）。三者均为纯 CSS 背景，不改逻辑。
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+/* ============================================================================
+ * 留白方案 demo · 宿主页：管理 iframe 帧（方案 × 视口 × 主题 × 路数）、
+ * 缩放/裁剪与实测数值展示。纯前端演示，不依赖后端。
+ * ========================================================================== */
+const LABEL = {
+  A: 'A · 现状（对照）',
+  B: 'B · 方案 1 整块木料',
+  C: 'C · 方案 2 浮板 + 页面底色',
+  D: 'D · 方案 2 浮板 + 深色毡布',
+  E: 'E · 方案 2 浮板 + 同料台面',
+  F: 'F · 建议 棋区恒方形',
+};
+const OPT_ORDER = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+const state = { opts: ['A'], vp: '1440x900', mode: 'page', theme: 'light', size: 19 };
+
+const chipsEl = document.getElementById('chips');
+const stageEl = document.getElementById('stage');
+const factsEl = document.getElementById('facts');
+
+/* ---------------- 控件 ---------------- */
+for (const opt of OPT_ORDER) {
+  const el = document.createElement('label');
+  el.className = 'chip' + (state.opts.includes(opt) ? ' on' : '');
+  el.textContent = LABEL[opt];
+  el.dataset.opt = opt;
+  el.addEventListener('click', () => {
+    const i = state.opts.indexOf(opt);
+    if (i >= 0) state.opts.splice(i, 1); else state.opts.push(opt);
+    if (state.opts.length === 0) state.opts.push(opt);   // 至少保留一个
+    state.opts.sort((a, b) => OPT_ORDER.indexOf(a) - OPT_ORDER.indexOf(b));
+    syncChips();
+    rebuild();
+  });
+  chipsEl.appendChild(el);
+}
+function syncChips() {
+  for (const el of chipsEl.children) el.classList.toggle('on', state.opts.includes(el.dataset.opt));
+}
+
+document.querySelectorAll('[data-preset]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.preset;
+    state.opts = v === 'ALL' ? [...OPT_ORDER] : v.split(',');
+    syncChips();
+    rebuild();
+  });
+});
+
+document.getElementById('vp').addEventListener('change', (e) => { state.vp = e.target.value; rebuild(); });
+
+document.querySelectorAll('#mode-page, #mode-focus').forEach((el) => {
+  el.addEventListener('click', () => {
+    state.mode = el.id === 'mode-focus' ? 'focus' : 'page';
+    document.getElementById('mode-page').classList.toggle('on', state.mode === 'page');
+    document.getElementById('mode-focus').classList.toggle('on', state.mode === 'focus');
+    rebuild();
+  });
+});
+
+document.querySelectorAll('#theme-chips .chip').forEach((el) => {
+  el.addEventListener('click', () => {
+    state.theme = el.dataset.theme;
+    document.querySelectorAll('#theme-chips .chip').forEach((c) => c.classList.toggle('on', c === el));
+    rebuild();
+  });
+});
+document.querySelectorAll('#size-chips .chip').forEach((el) => {
+  el.addEventListener('click', () => {
+    state.size = Number(el.dataset.size);
+    document.querySelectorAll('#size-chips .chip').forEach((c) => c.classList.toggle('on', c === el));
+    rebuild();
+  });
+});
+
+/* ---------------- 帧构建 ---------------- */
+/** 模拟视口尺寸（跟随窗口＝按宿主可用区近似）。 */
+function viewportSize() {
+  if (state.vp !== 'fit') {
+    const [w, h] = state.vp.split('x').map(Number);
+    return { w, h };
+  }
+  return {
+    w: Math.max(360, Math.min(window.innerWidth - 24, 1920)),
+    h: Math.max(480, window.innerHeight - 80),
+  };
+}
+
+function rebuild() {
+  stageEl.textContent = '';
+  factsEl.textContent = '—';
+  const measured = [];
+  for (const opt of state.opts) {
+    const fig = document.createElement('figure');
+    fig.className = 'frame-card';
+    const cap = document.createElement('figcaption');
+    const capName = document.createElement('b');
+    capName.textContent = LABEL[opt];
+    const capMeta = document.createElement('span');
+    capMeta.className = 'num';
+    capMeta.textContent = '加载中…';
+    cap.append(capName, capMeta);
+    const box = document.createElement('div');
+    box.className = 'frame-box';
+    const frame = document.createElement('iframe');
+    frame.className = 'frame';
+    frame.title = LABEL[opt];
+    frame.src = `board-wood-frame.html?opt=${opt}&theme=${state.theme}&size=${state.size}`;
+    box.appendChild(frame);
+    fig.append(cap, box);
+    stageEl.appendChild(fig);
+    frame.addEventListener('load', () => {
+      const api = frame.contentWindow && frame.contentWindow.__woodDemo;
+      if (!api) { capMeta.textContent = '帧加载失败'; return; }
+      const vp = viewportSize();
+      // 先按模拟视口定尺寸，再量测（否则读到的是 iframe 默认 300×150 下的兜底布局）
+      frame.style.width = `${vp.w}px`;
+      frame.style.height = `${vp.h}px`;
+      const m = api.metrics();
+      // 聚焦模式：把「棋盘容器」区域裁到最前（不改帧尺寸，只位移+缩放 iframe）
+      const view = state.mode === 'focus'
+        ? { x: m.boardRect.x, y: m.boardRect.y, w: m.boardRect.w, h: m.boardRect.h }
+        : { x: 0, y: 0, w: vp.w, h: vp.h };
+      const availW = Math.max(320, stageEl.clientWidth);
+      const availH = Math.max(260, window.innerHeight * (state.mode === 'focus' ? 0.62 : 0.74));
+      const scale = Math.max(0.16, Math.min(1.6, availW / view.w, availH / view.h));
+      frame.style.transform = `translate(${-view.x * scale}px, ${-view.y * scale}px) scale(${scale})`;
+      box.style.width = `${Math.round(view.w * scale)}px`;
+      box.style.height = `${Math.round(view.h * scale)}px`;
+      if (state.mode === 'focus') {
+        // 聚焦时隐藏帧内量测芯片（避免压住棋盘角部）
+        const d = frame.contentDocument;
+        if (d && !d.getElementById('hide-chip')) {
+          const st = d.createElement('style');
+          st.id = 'hide-chip';
+          st.textContent = '.demo-chip{display:none}';
+          d.head.appendChild(st);
+        }
+      }
+      capMeta.textContent =
+        `视口 ${m.vw}×${m.vh} ｜ 容器 ${m.wrap.w}×${m.wrap.h} ｜ 方形棋盘 ${m.side}×${m.side} ｜ 两侧留白 ${Math.round(m.band)}px/侧`;
+      measured.push(`${LABEL[opt]}：容器 ${m.wrap.w}×${m.wrap.h}，棋盘 ${m.side}×${m.side}，留白 ${Math.round(m.band)}px/侧`);
+      factsEl.textContent = measured.join('\n');
+    }, { once: true });
+  }
+}
+
+let rafId = 0;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(rebuild);
+});
+
+rebuild();
+</script>
+</body>
+</html>

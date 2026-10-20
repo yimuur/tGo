@@ -1,0 +1,148 @@
+# ============================================================
+# tGo 应用配置（唯一配置事实源）
+# 本文件为默认值兜底层（只读）；根目录 config.yaml 仅保存与默认不同的用户参数。
+# 参数分层：engine 级参数由后端渲染写入 analysis.cfg；请求级参数随查询动态下发。
+# ============================================================
+
+# -------------------- engine：引擎参数 --------------------
+engine:
+  standard_max_visits: 100                   # 标准分析 maxVisits（曲线/AI 推荐/试下实时）
+  deep_max_visits: 800                       # 深度分析 maxVisits（须大于 standard_max_visits）
+  num_analysis_threads: 2                    # 引擎 cfg 级：analysis.cfg numAnalysisThreads（修改后安全重启）
+  num_search_threads_per_analysis_thread: 16 # 引擎 cfg 级：analysis.cfg numSearchThreadsPerAnalysisThread
+  analysis_pv_len: 10                        # PV 截断长度 [5-15]
+  resident: false                            # 引擎常驻开关（默认 OFF：按需加载 + 空闲超时释放）
+  idle_timeout_s: 1800                       # 非常驻模式空闲超时释放（秒）
+  executable_dir: engine/katago              # KataGo 可执行文件目录（顶层含 katago.exe / katago，按平台识别）
+  model_dir: engine/models                   # 模型目录（*.bin.gz）
+  standard_model: ""                         # 默认标准模型文件名（空=自动扫描）
+  human_model: ""                            # 人类模型文件名（空=自动扫描 *human*.bin.gz）
+  analysis_cfg: engine/katago/analysis.cfg   # 引擎 cfg 文件（首次启动自动生成，后端渲染维护）
+
+# -------------------- play：对弈参数 --------------------
+play:
+  adaptive_initial_level: rank_5k  # 自适应难度 AI 初始水平（12 档之一）
+  max_undo: 10                     # 全局悔棋步数上限（仅人机对弈）
+  default_board_size: 19           # 默认棋盘大小 9/13/19
+  default_rules: chinese           # 默认规则集 chinese/japanese/aga
+  default_komi: 7.5                # 默认贴目
+  default_human_color: B           # 人机默认执子颜色 B/W
+  max_moves: 5                     # 候选点截断大小（持久化）
+
+# -------------------- review：复盘参数 --------------------
+review:
+  variation_preview_len: 10        # 变化图预览默认步数
+
+# -------------------- adaptive：自适应难度参数 --------------------
+adaptive:
+  window: 5                        # 近期目数损失滑动窗口（仅统计人类落子）
+  score_lead_up: 8.0               # 升级：人类领先目数阈值（Score Lead > 该值 且 近期零失误）
+  score_loss_up: 0.5               # 升级：近期平均目数损失上限（低于该值视为零失误）
+  score_lead_down: -15.0           # 降级：人类落后目数阈值（Score Lead < 该值）
+  score_loss_down: 3.0             # 降级：近期平均目数损失下限（高于该值视为昏招）
+  playout_doubling_advantage: -0.05  # 降级注入负 PDA（让 AI 收缩防线）
+
+# -------------------- report：分析报告指标参数 --------------------
+report:
+  top_n: 3                         # AI 吻合度 Top-N 与点评“命中 AI 选点（正着=前 N 名；第一名=妙着）”统一口径
+  # 点评分类带（最差→最佳；ΔW≤阈值 或 ΔS≤阈值 命中，both=True 时两条件均需满足；
+  # ΔS=目数变化（恶手为负、好手为正，与 ΔW 同向）；命中 AI 选点优先：第一选点→妙着、前 N 选点→至少正着）
+  quality_bands:
+    - label: 败着
+      winrate_delta: -0.15
+      score_delta: -4.5
+    - label: 失误
+      winrate_delta: -0.06
+      score_delta: -2.0
+    - label: 缓着
+      winrate_delta: -0.02
+      score_delta: -0.8
+    - label: 正着
+      winrate_delta: 0.03
+      score_delta: 0.0
+      both: true
+    - label: 妙着
+      winrate_delta: 0.03
+      score_delta: 0.0
+  turning_point_winrate_delta: 0.15  # 胜负手：按 |ΔS| 降序取（正负不限）；ΔS 缺失时 |ΔW| 须超该值才兜底
+  turning_point_count_min: 3         # 胜负手最少返回手数
+  turning_point_count_max: 5         # 胜负手最多返回手数
+  # 棋力评级带（从强到弱；平均目损 ≤ 且 吻合度 ≥ 同时满足命中）
+  ratings:
+    - label: 巅峰/职业
+      mean_loss: 0.15
+      match_rate: 0.75
+      description: 几乎没有非受迫性失误，后半盘极其精确
+    - label: 业余 6段-7段
+      mean_loss: 0.30
+      match_rate: 0.65
+      description: 具备极强的计算力，极少出现 2 目以上的亏损
+    - label: 业余 4段-5段
+      mean_loss: 0.60
+      match_rate: 0.55
+      description: 大局观良好，但在复杂战斗中偶尔会下出缓着
+    - label: 业余 1段-3段
+      mean_loss: 1.00
+      match_rate: 0.45
+      description: 掌握基本定式，但死活与方向判断存在盲区
+    - label: 高级级位
+      mean_loss: 1.50
+      match_rate: 0.35
+      description: 经常下出价值偏低的缓着，局部容易崩盘
+    - label: 初学者
+      mean_loss: 99.0
+      match_rate: 0.0
+      description: 满盘存在大量无理手和直接送吃的失误
+
+# -------------------- admin：管理模块参数 --------------------
+admin:
+  system_status_interval_s: 5      # 系统状态推送间隔（秒）
+
+# -------------------- logging：日志轮转参数 --------------------
+logging:
+  dir: logs                        # 日志目录
+  level: INFO                      # 日志级别 DEBUG/INFO/WARNING/ERROR
+  max_bytes: 5242880               # 单日志文件最大字节数
+  backup_count: 5                  # 轮转保留份数
+
+# -------------------- db：数据库参数 --------------------
+db:
+  path: data/tgo.db                # SQLite 数据库文件路径
+
+# -------------------- server：服务监听（一键启动/部署脚本读取，修改后重启生效） --------------------
+server:
+  host: 0.0.0.0   # 监听地址（0.0.0.0=全部网卡，局域网可达）
+  port: 8090      # 监听端口（被其它程序占用时启动器自动 +1，最多 +10；已是 tGo 则复用）
+
+# -------------------- levels：12 级难度映射 --------------------
+# 说明：max_visits 随查询顶层下发；wide_root_noise/max_time 经 overrideSettings 下发；
+# chosen_move_temperature 仅用于后端 AI 落子加权采样，不随查询下发。
+levels:
+  # 标准模型 12 级难度
+  standard:
+    - {level: 1, target: "20K", max_visits: 1, max_time: 0.1, chosen_move_temperature: 2.00, wide_root_noise: 0.30}
+    - {level: 2, target: "15K", max_visits: 1, max_time: 0.2, chosen_move_temperature: 1.70, wide_root_noise: 0.22}
+    - {level: 3, target: "10K", max_visits: 2, max_time: 0.3, chosen_move_temperature: 1.40, wide_root_noise: 0.18}
+    - {level: 4, target: "8K", max_visits: 3, max_time: 0.5, chosen_move_temperature: 1.10, wide_root_noise: 0.14}
+    - {level: 5, target: "5K", max_visits: 5, max_time: 1.0, chosen_move_temperature: 0.95, wide_root_noise: 0.10}
+    - {level: 6, target: "3K", max_visits: 10, max_time: 2.0, chosen_move_temperature: 0.80, wide_root_noise: 0.08}
+    - {level: 7, target: "1K", max_visits: 25, max_time: 4.0, chosen_move_temperature: 0.55, wide_root_noise: 0.05}
+    - {level: 8, target: "1D", max_visits: 50, max_time: 8.0, chosen_move_temperature: 0.40, wide_root_noise: 0.03}
+    - {level: 9, target: "3D", max_visits: 100, max_time: 10.0, chosen_move_temperature: 0.25, wide_root_noise: 0.01}
+    - {level: 10, target: "5D", max_visits: 200, max_time: 12.0, chosen_move_temperature: 0.15, wide_root_noise: 0.00}
+    - {level: 11, target: "7D", max_visits: 500, max_time: 16.0, chosen_move_temperature: 0.05, wide_root_noise: 0.00}
+    - {level: 12, target: "9D", max_visits: 800, max_time: 20.0, chosen_move_temperature: 0.00, wide_root_noise: 0.00}
+  # 仿人类模型 12 级难度
+  human:
+    - {level: 1, target: "启蒙", human_sl_profile: "rank_20k", max_visits: 1, chosen_move_temperature: 1.00}
+    - {level: 2, target: "入门", human_sl_profile: "rank_15k", max_visits: 1, chosen_move_temperature: 0.95}
+    - {level: 3, target: "初级", human_sl_profile: "rank_10k", max_visits: 1, chosen_move_temperature: 0.88}
+    - {level: 4, target: "中级", human_sl_profile: "rank_8k", max_visits: 1, chosen_move_temperature: 0.82}
+    - {level: 5, target: "中高级", human_sl_profile: "rank_5k", max_visits: 2, chosen_move_temperature: 0.75}
+    - {level: 6, target: "高级", human_sl_profile: "rank_3k", max_visits: 5, chosen_move_temperature: 0.70}
+    - {level: 7, target: "准段", human_sl_profile: "rank_1k", max_visits: 15, chosen_move_temperature: 0.60}
+    - {level: 8, target: "初段", human_sl_profile: "rank_1d", max_visits: 30, chosen_move_temperature: 0.50}
+    - {level: 9, target: "3段", human_sl_profile: "rank_3d", max_visits: 50, chosen_move_temperature: 0.35}
+    - {level: 10, target: "5段", human_sl_profile: "rank_5d", max_visits: 100, chosen_move_temperature: 0.25}
+    - {level: 11, target: "7段", human_sl_profile: "rank_7d", max_visits: 200, chosen_move_temperature: 0.10}
+    - {level: 12, target: "9段", human_sl_profile: "rank_9d", max_visits: 500, chosen_move_temperature: 0.00}

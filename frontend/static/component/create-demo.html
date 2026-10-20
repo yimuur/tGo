@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · Create Wizard Demo（T6.3 创建对局向导）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  /* Demo 专用 */
+  .demo-layout { display: flex; gap: 18px; padding: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .demo-side { width: 300px; flex: none; display: flex; flex-direction: column; gap: 10px; }
+  .demo-main { flex: 1 1 400px; min-height: 120px; }
+  .demo-log { font-size: 12px; color: var(--text-2); white-space: pre-wrap; min-height: 90px; }
+  .switch-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" id="theme-btn"><svg class="icon"><use href="#i-sun"/></svg>浅色</button>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main>
+  <h1 style="font-size:20px;margin:14px 18px 0">创建对局向导 · Create Wizard（T6.3）</h1>
+  <div class="muted" style="font-size:12px;margin:2px 18px 12px">
+    纯函数层由 <code>node --test tests/create-wizard.test.js</code> 覆盖；本页供人工验收：两步向导、
+    人机/人人切换、执子方与让子联动、档案联想、录段位→难度定位、人类模型缺失/引擎 DEAD 降级门控、
+    自适应隐藏难度滑杆、快速开始（W-25）、取消/创建回调。视觉基线对照 <code>WEBUI/pages/create.html</code>。
+  </div>
+
+  <div class="demo-layout">
+    <div class="demo-side">
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-engine"/></svg>引擎 / 模型门控</h3>
+        <div class="segctl" id="seg-engine" style="flex-wrap:wrap">
+          <button data-v="idle" class="on">就绪</button>
+          <button data-v="init">INIT</button>
+          <button data-v="dead">DEAD</button>
+          <button data-v="fatal">FATAL</button>
+        </div>
+        <div class="switch-line"><input type="checkbox" id="ck-human" checked><label for="ck-human">人类模型可用</label></div>
+        <button class="btn btn-secondary btn-sm" id="btn-reopen" style="margin-top:8px">重开向导（应用门控）</button>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-params"/></svg>预填 / 档案联想</h3>
+        <div class="switch-line"><input type="checkbox" id="ck-prefill"><label for="ck-prefill">带 tgo.create-prefill 打开</label></div>
+        <div class="switch-line"><input type="checkbox" id="ck-players" checked><label for="ck-players">档案库（张三/李四…）</label></div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0">行为回调</h3>
+        <div class="demo-log" id="demo-log" role="status"></div>
+      </div>
+    </div>
+
+    <div class="demo-main" id="demo-main"></div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+  import { createStore } from '../js/core/state.js';
+  import { createWizard } from '../js/views/create-wizard.js';
+  import { initialForm, serializePrefill, normalizePrefill } from '../js/views/create-wizard.js';
+
+  const logEl = document.getElementById('demo-log');
+  const log = (t) => { logEl.textContent = `${new Date().toLocaleTimeString()} · ${t}\n` + logEl.textContent.slice(0, 500); };
+
+  // ---- 假 REST ----
+  const PLAYERS = [
+    { name: '张三', rank: 'rank_5k' },
+    { name: '张三丰', rank: 'rank_1d' },
+    { name: '李四', rank: 'rank_8k' },
+    { name: '王五', rank: 'rank_3d' },
+    { name: '赵六', rank: 'rank_3k' },
+    { name: '周七', rank: 'rank_6k' },
+    { name: '吴八', rank: 'rank_9k' },
+  ];
+  let humanAvailable = true;
+  let playersOn = true;
+  const demoApi = {
+    async get(path, query = {}) {
+      await new Promise((r) => setTimeout(r, 60));
+      if (path === '/admin/models') {
+        return { data: {
+          models: humanAvailable
+            ? [{ name: 'kata.bin.gz', human: false, default: true }, { name: 'human.bin.gz', human: true, default: false }]
+            : [{ name: 'kata.bin.gz', human: false, default: true }],
+          default: 'kata.bin.gz', humanModelAvailable: humanAvailable } };
+      }
+      if (path === '/players') {
+        if (!playersOn) return { data: [] };
+        const q = String((query && query.name) || '').toLowerCase();
+        return { data: PLAYERS.filter((p) => !q || p.name.toLowerCase().includes(q)) };
+      }
+      throw new Error(`unknown ${path}`);
+    },
+    async post(path, body) {
+      await new Promise((r) => setTimeout(r, 150));
+      if (path === '/games') {
+        log(`POST /games ${JSON.stringify(body)}`);
+        return { status: 201, accepted: false, data: { game_id: 42 } };
+      }
+      throw new Error(`unknown ${path}`);
+    },
+  };
+
+  // ---- demo store（引擎态由下方分段控制）----
+  const store = createStore();
+  function setEngine(v) {
+    const map = { idle: 'IDLE', init: 'INIT', dead: 'DEAD', fatal: 'FATAL' };
+    store.dispatch({ type: 'engine.status', data: { state: map[v], progress: null } });
+  }
+
+  const lsMem = new Map();
+  const demoLs = {
+    get: (k, fb) => (lsMem.has(k) ? JSON.parse(lsMem.get(k)) : fb),
+    set: (k, v) => { lsMem.set(k, JSON.stringify(v)); log(`ls.set(${k}, …)`); return true; },
+    remove: (k) => lsMem.delete(k),
+  };
+
+  // ---- 预填样例 ----
+  function samplePrefill() {
+    return normalizePrefill({
+      mode: 'human_human', boardSize: 13, rules: 'japanese', komi: 6.5, handicap: 0,
+      humanColor: 'black', style: 'standard', level: 5,
+      blackName: '老陈', blackRank: 'rank_3d', whiteName: 'AI', whiteRank: null, coaching: true,
+    }, initialForm());
+  }
+
+  const wizard = createWizard({
+    store,
+    api: demoApi,
+    ls: demoLs,
+    toast: (o) => log(`[toast] ${o.level || ''} ${o.text || o.message || ''}`),
+    nav: (hash) => log(`[nav] → ${hash}`),
+    onCreated: (gameId, form) => log(`[onCreated] game_id=${gameId} form=${JSON.stringify(serializePrefill(form))}`),
+  });
+  window.__wizard = wizard;
+
+  async function openWith() {
+    wizard.close();
+    const usePrefill = document.getElementById('ck-prefill').checked;
+    log(`open（prefill=${usePrefill ? '是' : '否'} · human=${humanAvailable} · engine=${store.getState().engine.state}）`);
+    await wizard.open(usePrefill ? samplePrefill() : null);
+  }
+
+  document.getElementById('btn-reopen').addEventListener('click', () => openWith());
+  document.getElementById('ck-human').addEventListener('change', (e) => {
+    humanAvailable = e.target.checked;
+    log(`人类模型 → ${humanAvailable}`);
+    wizard.refreshEnv();
+  });
+  document.getElementById('ck-players').addEventListener('change', (e) => { playersOn = e.target.checked; });
+  document.getElementById('seg-engine').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    document.querySelectorAll('#seg-engine button').forEach((b) => b.classList.toggle('on', b === btn));
+    setEngine(btn.dataset.v);
+    log(`engine → ${btn.dataset.v}`);
+    wizard.refreshEnv();
+  });
+
+  document.getElementById('theme-btn').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+    document.getElementById('theme-btn').innerHTML =
+      `<svg class="icon"><use href="#${dark ? 'i-sun' : 'i-moon'}"/></svg>${dark ? '浅色' : '深色'}`;
+  });
+
+  openWith();
+</script>
+</body>
+</html>

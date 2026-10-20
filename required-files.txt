@@ -1,0 +1,146 @@
+# ============================================================================
+# tGo 运行必须文件清单（部署包完整性预检源；start.ps1 / deploy.sh 读取同一清单）
+#
+# 规则：
+#   - 相对项目根路径、正斜杠分隔；每行一个文件（空行与 # 注释行忽略）；
+#   - 预检对清单内每个文件做【存在性 + 非零字节】校验；缺失/损坏一次列全并拒绝启动；
+#   - 新增【运行必须】文件时必须同步登记本清单；backend/tests/test_required_files.py
+#     守门测试对比仓库实际文件与本清单（未登记 / 清单冗余 / 条目不存在都会失败）；
+#   - 非运行文件不入清单：演示/QA 页 frontend/static/component/*.html、WEBUI/、docs/、
+#     backend/pytest.ini、requirements-dev.txt、README 等；backend/default.yaml、
+#     backend/default.cfg 与 engine/katago/analysis.cfg 缺失时自动生成，亦不入清单；
+#   - 引擎可执行文件与模型不入清单（缺失降级：人人对弈与复盘不受影响，脚本仅提示）。
+# ============================================================================
+
+# ---- 后端：依赖清单 ----
+backend/requirements.txt
+
+# ---- 后端：app 包（全部运行模块） ----
+backend/app/__init__.py
+backend/app/main.py
+backend/app/bootstrap.py
+backend/app/config.py
+backend/app/launcher.py
+backend/app/version.py
+backend/app/api/__init__.py
+backend/app/api/deps.py
+backend/app/api/public.py
+backend/app/api/routes_admin.py
+backend/app/api/routes_games.py
+backend/app/api/routes_players.py
+backend/app/api/schemas.py
+backend/app/api/ws_admin.py
+backend/app/api/ws_game.py
+backend/app/api/ws_guard.py
+backend/app/core/__init__.py
+backend/app/core/accept_guard.py
+backend/app/core/console_guard.py
+backend/app/core/errors.py
+backend/app/core/fsm.py
+backend/app/core/game_fsm.py
+backend/app/core/logging_setup.py
+backend/app/core/loop_guard.py
+backend/app/db/__init__.py
+backend/app/db/database.py
+backend/app/db/repos.py
+backend/app/db/schema.sql
+backend/app/engine/__init__.py
+backend/app/engine/analysis_engine.py
+backend/app/engine/analysis_query.py
+backend/app/engine/benchmark.py
+backend/app/engine/coords.py
+backend/app/engine/manager.py
+backend/app/engine/models.py
+backend/app/engine/play_query.py
+backend/app/engine/preprocess.py
+backend/app/services/__init__.py
+backend/app/services/adaptive.py
+backend/app/services/analysis_service.py
+backend/app/services/chain_precision.py
+backend/app/services/final_score.py
+backend/app/services/game_service.py
+backend/app/updates/__init__.py
+backend/app/updates/app_update.py
+backend/app/updates/common.py
+backend/app/updates/engine_update.py
+backend/app/updates/model_update.py
+backend/app/updates/service.py
+backend/app/services/go_rules.py
+backend/app/services/report_service.py
+backend/app/services/review_service.py
+backend/app/services/scoring.py
+backend/app/services/sgf_io.py
+backend/app/ws/__init__.py
+backend/app/ws/pushes.py
+backend/app/ws/session.py
+
+# ---- 前端：SPA 壳与样式 ----
+frontend/static/index.html
+frontend/static/css/app.css
+
+# ---- 前端：脚本入口 ----
+frontend/static/js/app.js
+frontend/static/js/icons.js
+frontend/static/js/tooltip.js
+
+# ---- 前端：core 模块 ----
+frontend/static/js/core/audio.js
+frontend/static/js/core/banner.js
+frontend/static/js/core/board.js
+frontend/static/js/core/btn-lit.js
+frontend/static/js/core/capture-counter.js
+frontend/static/js/core/comment-bubble.js
+frontend/static/js/core/conn-banner.js
+frontend/static/js/core/curve.js
+frontend/static/js/core/dialog.js
+frontend/static/js/core/drop-anim.js
+frontend/static/js/core/engine-banner.js
+frontend/static/js/core/engine-pill.js
+frontend/static/js/core/engine-state.js
+frontend/static/js/core/fmt.js
+frontend/static/js/core/game-model.js
+frontend/static/js/core/go-rules.js
+frontend/static/js/core/immersive.js
+frontend/static/js/core/info-row.js
+frontend/static/js/core/localstore.js
+frontend/static/js/core/replay-bundle.js
+frontend/static/js/core/rest-client.js
+frontend/static/js/core/route.js
+frontend/static/js/core/settings.js
+frontend/static/js/core/sgf-import.js
+frontend/static/js/core/sponsor-config.js
+frontend/static/js/core/sponsor.js
+frontend/static/js/core/state.js
+frontend/static/js/core/stone-style.js
+frontend/static/js/core/territory.js
+frontend/static/js/core/theme.js
+frontend/static/js/core/toast.js
+frontend/static/js/core/trial-store.js
+frontend/static/js/core/view-loader.js
+frontend/static/js/core/wood-grain.js
+frontend/static/js/core/ws-client.js
+
+# ---- 前端：views 模块 ----
+frontend/static/js/views/admin-view.js
+frontend/static/js/views/create-wizard.js
+frontend/static/js/views/game-sidebar.js
+frontend/static/js/views/game-view.js
+frontend/static/js/views/onboarding-view.js
+frontend/static/js/views/report-dialog.js
+frontend/static/js/views/review-list-view.js
+frontend/static/js/views/review-settle.js
+frontend/static/js/views/review-sidebar.js
+frontend/static/js/views/review-view.js
+frontend/static/js/views/scoring-panel.js
+
+# ---- 前端：Web Worker ----
+frontend/static/js/workers/analysis.worker.js
+
+# ---- 前端：品牌/主题资产 ----
+frontend/static/favicon.svg
+frontend/static/favicon.ico
+frontend/static/apple-touch-icon.png
+frontend/static/title.svg
+frontend/static/title-dark.svg
+frontend/static/background.svg
+frontend/static/background-dark.svg

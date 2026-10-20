@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · GameBoard Demo（双层 Canvas，T5.5）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  /* Demo 专用（非产品样式；产品样式零改动） */
+  .board-wrap { max-width: 680px; max-height: none; }
+  .demo-grid { display: grid; grid-template-columns: minmax(320px, 680px) 340px; gap: 20px; align-items: start; }
+  @media (max-width: 1080px) { .demo-grid { grid-template-columns: 1fr; } }
+  .board-wrap canvas { cursor: pointer; }
+  .demo-log { font-size: 12px; color: var(--text-2); min-height: 44px; }
+  .demo-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .field { margin-bottom: 8px; }
+  .switch-line { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+  .switch-line input { width: auto; }
+  .kv-row { font-size: 12px; color: var(--text-3); }
+</style>
+</head>
+<body>
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" id="theme-btn"><svg class="icon"><use href="#i-sun"/></svg>浅色</button>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main class="layout" style="padding-top:12px">
+  <h1 style="font-size:20px;margin:0 0 2px">GameBoard · 双层 Canvas 棋盘（T5.5 组件）</h1>
+  <div class="muted" style="font-size:12px;margin-bottom:14px">
+    纯函数层（坐标/几何/量化/键盘点序）由 <code>node --test tests/board.test.js</code> 无头覆盖；
+    本页用于人工验收轮：深/浅 × 9/13/19、落子 drop / 提子残影 / TOP5 fade / 领地热力 / 键盘选点。
+    视觉基线对照 <code>WEBUI/pages/game.html</code>（榧木·云子·点评色环·TOP5 徽章）。
+  </div>
+
+  <div class="demo-grid">
+    <!-- 棋盘列 -->
+    <div>
+      <div class="board-wrap" id="board-wrap" aria-label="棋盘 demo 容器"></div>
+      <div class="demo-row" style="margin-top:10px">
+        <button class="btn btn-secondary btn-sm" id="btn-focus">聚焦键盘</button>
+        <button class="btn btn-secondary btn-sm" id="btn-illegal">非法 ✕ 演示</button>
+        <button class="btn btn-secondary btn-sm" id="btn-undo">悔一手</button>
+        <button class="btn btn-secondary btn-sm" id="btn-demo">自动演示 ▸</button>
+        <button class="btn btn-ghost btn-sm" id="btn-reset">清空</button>
+      </div>
+      <div class="demo-log" role="status" aria-live="polite" id="demo-log"></div>
+    </div>
+
+    <!-- 控制列 -->
+    <div class="card" style="padding:14px">
+      <h3 style="margin-top:0"><svg class="icon"><use href="#i-params"/></svg>Props / 状态</h3>
+      <div class="field">
+        <div class="label">路数 size</div>
+        <div class="segctl" id="seg-size">
+          <button data-v="9">9</button><button data-v="13">13</button><button data-v="19" class="on">19</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">执色 toMove（hover 幽灵 / 演示落子）</div>
+        <div class="segctl" id="seg-tomove">
+          <button data-v="black" class="on">黑</button><button data-v="white">白</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">当前手标记 lastMarker</div>
+        <div class="segctl" id="seg-marker">
+          <button data-v="dot" class="on">圆点</button><button data-v="ring">反色圆环</button><button data-v="none">无</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">预设场景</div>
+        <div class="segctl" id="seg-scene">
+          <button data-v="empty" class="on">空盘</button>
+          <button data-v="open">开局</button>
+          <button data-v="mid">中盘示例</button>
+          <button data-v="handicap">让子</button>
+        </div>
+      </div>
+
+      <div class="switch-line"><input type="checkbox" id="ck-interactive" checked><label for="ck-interactive">interactive（点击落子 / hover / 键盘）</label></div>
+      <div class="switch-line"><input type="checkbox" id="ck-readonly"><label for="ck-readonly">readonly（复盘只读）</label></div>
+      <div class="switch-line"><input type="checkbox" id="ck-dead"><label for="ck-dead">engineDead（整板降饱和）</label></div>
+      <div class="switch-line"><input type="checkbox" id="ck-coord" checked><label for="ck-coord">边沿坐标标签</label></div>
+
+      <div class="field" style="margin-top:8px">
+        <div class="label">叠加标记（状态层）</div>
+        <div class="switch-line"><input type="checkbox" id="ck-top5"><label for="ck-top5">TOP5 推荐徽章</label></div>
+        <div class="switch-line"><input type="checkbox" id="ck-comments"><label for="ck-comments">点评色环（中盘示例自配）</label></div>
+        <div class="switch-line"><input type="checkbox" id="ck-heat"><label for="ck-heat">领地热力</label></div>
+        <div class="switch-line"><input type="checkbox" id="ck-variation"><label for="ck-variation">变化图预览</label></div>
+      </div>
+
+      <div class="kv-row" id="kv-state">—</div>
+    </div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+import GameBoard from '../js/core/board.js';
+
+const wrap = document.getElementById('board-wrap');
+const logEl = document.getElementById('demo-log');
+const kvEl = document.getElementById('kv-state');
+const themeBtn = document.getElementById('theme-btn');
+
+/* ---------------- 主题（浅/深） ---------------- */
+function applyThemeUI() {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  // 图标＝当前主题状态（浅色→太阳 / 深色→月亮，2026/09/13 人工反馈对齐）
+  themeBtn.innerHTML = `<svg class="icon"><use href="#${dark ? 'i-moon' : 'i-sun'}"/></svg>${dark ? '深色' : '浅色'}`;
+}
+themeBtn.addEventListener('click', () => {
+  document.documentElement.dataset.theme =
+    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyThemeUI();
+});
+
+/* ---------------- 模型状态 ---------------- */
+const scenes = {
+  empty: () => ({ stones: [], comments: [], dead: [], top5: [], ownership: null, variation: [] }),
+  open: () => {
+    // 与静态稿同风格：散点布局（x,y 后端坐标）
+    const pts = [[3, 3, 'B'], [9, 3, 'B'], [15, 3, 'B'], [3, 9, 'B'], [9, 9, 'B'], [15, 9, 'B'],
+      [6, 6, 'W'], [12, 6, 'W'], [6, 12, 'W'], [12, 12, 'W'], [9, 15, 'W'], [3, 15, 'W']];
+    const stones = pts.map(([x, y, c], i) => ({ x, y, color: c === 'B' ? 'black' : 'white', moveNo: i + 1 }));
+    return { stones, comments: [], dead: [], top5: [], ownership: null, variation: [] };
+  },
+  mid: () => {
+    const stones = [];
+    const B = (x, y, n) => stones.push({ x, y, color: 'black', moveNo: n });
+    const W = (x, y, n) => stones.push({ x, y, color: 'white', moveNo: n });
+    // 中心战斗带
+    B(7, 7, 1); W(10, 7, 2); B(7, 10, 3); W(10, 10, 4); B(5, 8, 5); W(12, 8, 6);
+    B(8, 12, 7); W(9, 6, 8); B(6, 6, 9); W(11, 11, 10); B(9, 9, 11); W(8, 8, 12);
+    B(13, 6, 13); W(14, 13, 14); B(4, 13, 15); W(3, 3, 16); B(15, 15, 17); W(15, 3, 18);
+    B(3, 15, 19); W(6, 15, 20); B(12, 3, 21); W(16, 8, 22); B(2, 6, 23); W(8, 16, 24);
+    // 死子（结算演示）
+    const dead = [{ x: 10, y: 10 }, { x: 11, y: 8 }];
+    // 点评：紧贴末几手棋子（色环+角标）
+    const comments = [
+      { x: 9, y: 9, grade: 'brilliant' },
+      { x: 8, y: 8, grade: 'mistake' },
+      { x: 16, y: 8, grade: 'slow' },
+      { x: 2, y: 6, grade: 'good' },
+      { x: 8, y: 16, grade: 'blunder' },
+    ];
+    // TOP5 徽章（rank 1..5）
+    const top5 = [
+      { x: 9, y: 12, rank: 1 }, { x: 12, y: 9, rank: 2 }, { x: 5, y: 11, rank: 3 },
+      { x: 13, y: 10, rank: 4 }, { x: 7, y: 5, rank: 5 },
+    ];
+    // 领地热力：确定性分布（中心黑域 + 两侧白域近似）
+    const own = buildOwnership(19);
+    return { stones, comments, dead, top5, ownership: own, variation: [] };
+  },
+  handicap: () => {
+    const nine = [[3, 3], [15, 3], [3, 15], [15, 15], [3, 9], [15, 9], [9, 3], [9, 15], [9, 9]];
+    const stones = nine.map(([x, y]) => ({ x, y, color: 'black', moveNo: 0 }));
+    return { stones, comments: [], dead: [], top5: [], ownership: null, variation: [] };
+  },
+};
+
+const VARIATION_PTS = [
+  { x: 10, y: 12 }, { x: 8, y: 11 }, { x: 11, y: 9 }, { x: 7, y: 12 }, { x: 9, y: 13 },
+];
+
+/** 生成 n 路领地方差场（中心黑域 + 两角白域），数值 [-1,1]。 */
+function buildOwnership(n) {
+  const own = new Array(n * n).fill(0);
+  const mid = (n - 1) / 2;
+  const k = (n - 1) / 18; // 相对 19 路缩放
+  const gauss = (cx, cy, s) => (x, y) => Math.exp(-(((x - cx) ** 2 + (y - cy) ** 2) / (2 * s * s)));
+  const blackField = gauss(mid, mid, 6 * k);
+  const whiteA = gauss(2 * k, 2 * k, 4 * k);
+  const whiteB = gauss(16 * k, 16 * k, 4 * k);
+  for (let y = 0; y < n; y += 1) {
+    for (let x = 0; x < n; x += 1) {
+      const v = blackField(x, y) * 0.9 - whiteA(x, y) * 0.85 - whiteB(x, y) * 0.85;
+      own[y * n + x] = Math.max(-1, Math.min(1, v));
+    }
+  }
+  return own;
+}
+
+/** 场景（19 路数据）按目标路数等比缩放去重（9/13 路安全复用）。 */
+function remapScene(scene, n) {
+  if (n === 19) return scene;
+  const f = (n - 1) / 18;
+  const map = ({ x, y }) => ({
+    x: Math.min(n - 1, Math.max(0, Math.round(x * f))),
+    y: Math.min(n - 1, Math.max(0, Math.round(y * f))),
+  });
+  const uniq = (arr, extra) => {
+    const seen = new Set();
+    const out = [];
+    for (const p of arr) {
+      const q = map(p);
+      const k = `${q.x},${q.y}`;
+      if (!seen.has(k)) { seen.add(k); out.push(extra ? { ...q, ...extra(p) } : q); }
+    }
+    return out;
+  };
+  return {
+    stones: uniq(scene.stones, (s) => ({ color: s.color, moveNo: s.moveNo })),
+    comments: uniq(scene.comments, (c) => ({ grade: c.grade })),
+    dead: uniq(scene.dead),
+    top5: uniq(scene.top5, (t) => ({ rank: t.rank })),
+    ownership: scene.ownership ? buildOwnership(n) : null,
+    variation: [],
+  };
+}
+
+let currentSize = 19;
+let stones = [];
+let lastPlaced = null; // {x,y}
+let moveCounter = 0;
+
+/* ---------------- 组件装配 ---------------- */
+const board = new GameBoard(wrap, {
+  size: 19,
+  toMove: 'black',
+  stones,
+  interactive: true,
+  showCoordinates: true,
+  onIntersection: (x, y) => {
+    // 演示：交互式点击 → 落当前执色一子并换手
+    if (!boardInteractive()) return;
+    moveCounter += 1;
+    const color = currentToMove();
+    lastPlaced = { x, y };
+    stones = [...stones, { x, y, color, moveNo: moveCounter }];
+    board.setProps({ toMove: color === 'black' ? 'white' : 'black' });
+    board.applyMove({ x, y, color, moveNo: moveCounter });
+    board.announce(`${color === 'black' ? '黑方' : '白方'}落子演示`);
+    log(`点击落子 (${x},${y}) ${color}`);
+  },
+  onHover: (pt) => {
+    if (!boardInteractive()) return;
+    kv(`hover: ${pt ? `(${pt.x},${pt.y})` : '—'}`);
+  },
+});
+
+/* ---------------- 工具 ---------------- */
+const $ = (id) => document.getElementById(id);
+const currentToMove = () => $('seg-tomove').querySelector('.on').dataset.v;
+const boardInteractive = () => $('ck-interactive').checked && !$('ck-readonly').checked;
+let logTimer = 0;
+function log(text) {
+  logEl.textContent = text;
+  kv(`stones: ${stones.length} · last: ${lastPlaced ? `(${lastPlaced.x},${lastPlaced.y})` : '—'}`);
+}
+function kv(text) { kvEl.textContent = text; }
+
+function segBind(id, fn) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    $(id).querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    fn(b.dataset.v);
+  });
+}
+
+function syncChecks() {
+  board.setProps({
+    interactive: boardInteractive(),
+    readonly: $('ck-readonly').checked,
+    engineDead: $('ck-dead').checked,
+    showCoordinates: $('ck-coord').checked,
+    top5: $('ck-top5').checked ? currentSceneTop5() : [],
+    comments: $('ck-comments').checked ? currentSceneComments() : [],
+    heatVisible: $('ck-heat').checked,
+    variations: $('ck-variation').checked ? VARIATION_PTS : [],
+  });
+}
+
+let sceneTop5 = [];
+let sceneComments = [];
+function currentSceneTop5() { return sceneTop5; }
+function currentSceneComments() { return sceneComments; }
+
+function loadScene(name) {
+  const base = scenes[name] ? scenes[name]() : scenes.empty();
+  const s = remapScene(base, currentSize);
+  stones = s.stones;
+  sceneTop5 = s.top5;
+  sceneComments = s.comments;
+  moveCounter = stones.length;
+  lastPlaced = stones.length ? { x: stones[stones.length - 1].x, y: stones[stones.length - 1].y } : null;
+  board.setProps({
+    stones,
+    comments: $('ck-comments').checked ? sceneComments : [],
+    top5: $('ck-top5').checked ? sceneTop5 : [],
+    deadStones: s.dead,
+    ownership: s.ownership,
+    heatVisible: $('ck-heat').checked,
+  });
+  log(`场景：${name}（${stones.length} 子 · ${currentSize} 路）`);
+}
+
+/* ---------------- 控件绑定 ---------------- */
+segBind('seg-size', (v) => {
+  currentSize = Number(v);
+  board.setProps({ size: currentSize });
+  const sc = $('seg-scene').querySelector('.on').dataset.v;
+  if (sc !== 'empty') loadScene(sc);
+  log(`路数：${currentSize}`);
+});
+segBind('seg-tomove', (v) => {
+  board.setToMove(v);
+  log(`执色：${v === 'black' ? '黑' : '白'}`);
+});
+segBind('seg-marker', (v) => { board.setProps({ lastMarker: v }); });
+segBind('seg-scene', (v) => loadScene(v));
+
+['ck-interactive', 'ck-readonly', 'ck-dead', 'ck-coord', 'ck-top5', 'ck-comments', 'ck-heat', 'ck-variation']
+  .forEach((id) => $(id).addEventListener('change', syncChecks));
+
+$('btn-focus').addEventListener('click', () => {
+  board.focus();
+  log('已聚焦棋盘：方向键选点，Enter/Space 落子');
+});
+$('btn-illegal').addEventListener('click', () => {
+  const p = lastPlaced || { x: 9, y: 9 };
+  board.flashIllegal(p.x, p.y);
+  log(`非法 ✕：(${p.x},${p.y})`);
+});
+$('btn-undo').addEventListener('click', () => {
+  if (!lastPlaced) return;
+  board.removeStone(lastPlaced.x, lastPlaced.y);
+  stones = stones.filter((s) => !(s.x === lastPlaced.x && s.y === lastPlaced.y));
+  lastPlaced = null;
+  log('悔一手（无提子残影）');
+});
+$('btn-reset').addEventListener('click', () => {
+  stones = [];
+  lastPlaced = null;
+  moveCounter = 0;
+  board.setProps({ stones: [] });
+  log('已清空');
+});
+
+/* 自动演示：脚本化落子（drop 动画）+ 随机提子残影 */
+let demoTimer = 0;
+let demoQueue = [];
+function buildDemoMoves() {
+  const n = currentSize;
+  const taken = new Set(stones.map((s) => `${s.x},${s.y}`));
+  const moves = [];
+  let cx = Math.floor((n - 1) / 2); let cy = Math.floor((n - 1) / 2); let color = 0; // black first
+  const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1]];
+  for (let i = 0; i < 26; i += 1) {
+    let placed = false;
+    for (let attempt = 0; attempt < 8 && !placed; attempt += 1) {
+      const d = dirs[(i + attempt) % dirs.length];
+      const x = Math.min(n - 1, Math.max(0, cx + d[0]));
+      const y = Math.min(n - 1, Math.max(0, cy + d[1]));
+      const key = `${x},${y}`;
+      if (!taken.has(key)) {
+        taken.add(key);
+        moves.push({ x, y, color: color === 0 ? 'black' : 'white' });
+        cx = x; cy = y;
+        color = 1 - color;
+        placed = true;
+      }
+    }
+    if (!placed) break;
+  }
+  return moves;
+}
+$('btn-demo').addEventListener('click', () => {
+  if (demoTimer) {
+    clearInterval(demoTimer);
+    demoTimer = 0;
+    $('btn-demo').textContent = '自动演示 ▸';
+    log('自动演示已停止');
+    return;
+  }
+  demoQueue = buildDemoMoves();
+  if (!demoQueue.length) { log('无空点可演示'); return; }
+  $('btn-demo').textContent = '停止 ■';
+  demoTimer = setInterval(() => {
+    const mv = demoQueue.shift();
+    if (!mv) {
+      clearInterval(demoTimer);
+      demoTimer = 0;
+      $('btn-demo').textContent = '自动演示 ▸';
+      log('自动演示完成');
+      return;
+    }
+    moveCounter += 1;
+    const existing = stones.find((s) => s.x === mv.x && s.y === mv.y);
+    if (existing) {
+      board.removeStone(mv.x, mv.y, { capture: true }); // 提子残影演示
+      stones = stones.filter((s) => !(s.x === mv.x && s.y === mv.y));
+      log(`演示提子 (${mv.x},${mv.y})`);
+    } else {
+      board.applyMove({ x: mv.x, y: mv.y, color: mv.color, moveNo: moveCounter });
+      stones = [...stones, { x: mv.x, y: mv.y, color: mv.color, moveNo: moveCounter }];
+      lastPlaced = { x: mv.x, y: mv.y };
+      log(`演示落子 (${mv.x},${mv.y}) ${mv.color}`);
+    }
+    board.setToMove(mv.color === 'black' ? 'white' : 'black');
+  }, 320);
+});
+
+/* ---------------- 初始化 ---------------- */
+applyThemeUI();
+loadScene('empty');
+syncChecks();
+log('就绪：点击棋盘落子；Seg 控件即时生效');
+</script>
+</body>
+</html>

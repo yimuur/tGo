@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · Onboarding Demo（T6.2 首启引导）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  /* Demo 专用（非产品样式） */
+  .demo-layout { display: flex; gap: 18px; align-items: flex-start; padding: 18px; flex-wrap: wrap; }
+  .demo-side { width: 320px; flex: none; display: flex; flex-direction: column; gap: 10px; }
+  #ob-host { flex: 1 1 460px; min-width: 460px; }
+  #ob-host.welcome-wrap { min-height: 0; }
+  .demo-log { font-size: 12px; color: var(--text-2); min-height: 64px; white-space: pre-wrap; word-break: break-all; }
+  .demo-state { font-size: 12px; color: var(--text-2); }
+  .demo-state b { color: var(--text-1); }
+</style>
+</head>
+<body>
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <button class="eng-pill" id="engine-pill" title="引擎状态预览（demo store 驱动）">
+    <span class="dot s-init"></span><span class="eng-label">连接中</span>
+  </button>
+  <button class="btn btn-ghost" id="theme-btn"><svg class="icon"><use href="#i-sun"/></svg>浅色</button>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main>
+  <h1 style="font-size:20px;margin:14px 18px 0">Onboarding · 首启引导视图（T6.2）</h1>
+  <div class="muted" style="font-size:12px;margin:2px 18px 12px">
+    纯函数派生由 <code>node --test tests/onboarding.test.js</code> 覆盖；本页供人工验收：
+    首次/非首次门禁、模型自检（标准缺失降级·不阻断进入 / 人类缺失影响）、引擎 INIT/调优/DEAD/FATAL 各态、
+    [进入 tGo] 分流（active-latest 恢复确认 / 创建）。实时数据＝demo store（经下方场景注入）。
+  </div>
+
+  <div class="demo-layout">
+    <div class="demo-side">
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-model"/></svg>模型自检场景（需点重新检测生效）</h3>
+        <div class="segctl" id="seg-models" style="flex-wrap:wrap">
+          <button data-v="full" class="on">齐全</button>
+          <button data-v="no-human">人类缺失</button>
+          <button data-v="no-standard">标准缺失</button>
+          <button data-v="err">服务失败</button>
+        </div>
+        <div class="demo-row" style="margin-top:8px">
+          <button class="btn btn-secondary btn-sm" id="btn-recheck">重新检测</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-engine"/></svg>引擎状态（engine.status）</h3>
+        <div class="segctl" id="seg-engine" style="flex-wrap:wrap">
+          <button data-v="none" class="on">未连接</button>
+          <button data-v="init">启动中</button>
+          <button data-v="tune">GPU 调优▸</button>
+          <button data-v="idle">就绪</button>
+          <button data-v="busy">分析中</button>
+          <button data-v="dead">DEAD</button>
+          <button data-v="fatal">FATAL</button>
+          <button data-v="fatal-no-model">FATAL · 缺模型</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0"><svg class="icon"><use href="#i-resume"/></svg>进入分流（active-latest）</h3>
+        <div class="segctl" id="seg-active">
+          <button data-v="none" class="on">无进行中对局</button>
+          <button data-v="active">有进行中对局</button>
+        </div>
+        <div class="switch-line" style="margin-top:8px">
+          <input type="checkbox" id="ck-resume" checked><label for="ck-resume">恢复确认弹层选「恢复」</label>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <h3 style="margin-top:0">实时派生</h3>
+        <div class="demo-state" id="demo-state"></div>
+        <div class="demo-log" id="demo-log" role="status"></div>
+      </div>
+    </div>
+
+    <div id="ob-host"></div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+  import { createStore } from '../js/core/state.js';
+  import { attachEnginePill } from '../js/core/engine-pill.js';
+  import { attachEngineBanner } from '../js/core/engine-banner.js';
+  import { showBanner } from '../js/core/banner.js';
+  import { deriveEngineStep, createView } from '../js/views/onboarding-view.js';
+
+  const logEl = document.getElementById('demo-log');
+  const stateEl = document.getElementById('demo-state');
+  function log(text) {
+    logEl.textContent = `${new Date().toLocaleTimeString()} · ${text}\n` + logEl.textContent.slice(0, 300);
+  }
+
+  // ---- 可变的假 REST 后端 ----
+  const M = {
+    full: { data: { models: [
+      { name: 'kata1-b18c384nbt.bin.gz', human: false, default: true },
+      { name: 'b18c384nbt-humanv0.bin.gz', human: true, default: false },
+    ], default: 'kata1-b18c384nbt.bin.gz', humanModelAvailable: true } },
+    'no-human': { data: { models: [
+      { name: 'kata1-b18c384nbt.bin.gz', human: false, default: true },
+    ], default: 'kata1-b18c384nbt.bin.gz', humanModelAvailable: false } },
+    'no-standard': { data: { models: [], default: null, humanModelAvailable: false } },
+  };
+  let modelScenario = 'full';
+  let activeScenario = 'none';
+  const demoApi = {
+    async get(path) {
+      await new Promise((r) => setTimeout(r, 120)); // 模拟网络延迟
+      if (path === '/admin/models') {
+        if (modelScenario === 'err') throw new Error('网络连接失败');
+        return M[modelScenario];
+      }
+      if (path === '/games/active-latest') {
+        return activeScenario === 'active'
+          ? { data: { id: 7, mode: 'ai', board_size: 19, status: 'active',
+              black_name: '张三', black_rank: '1d', white_name: 'AI', ai_level: 4,
+              last_move_no: 38, human_model_available: true } }
+          : { data: null };
+      }
+      throw new Error(`unknown path ${path}`);
+    },
+  };
+
+  // ---- 独立 demo store（初始 engine=null → connecting 态）----
+  const store = createStore();
+  attachEnginePill({
+    pillEl: document.getElementById('engine-pill'),
+    getState: () => store.getState(),
+    subscribe: (fn) => store.subscribe(fn),
+  });
+  // 引擎降级横幅驱动（与产品壳同源：showBanner/showToast 注入；动作仅记录）
+  attachEngineBanner({
+    getState: () => store.getState(),
+    subscribe: (fn) => store.subscribe(fn),
+    showBanner,
+    showToast: (o) => log(`[toast] ${o.level || ''} ${o.text || o.message || ''}`),
+    onAction: (key) => log(`[banner-action] ${key}（生产=POST /engines/start 或跳管理页）`),
+  });
+
+  const view = createView(document.getElementById('ob-host'), {
+    store,
+    api: demoApi,
+    ls: { get: () => false, set: (k, v) => { log(`ls.set(${k}, ${v})`); return true; } },
+    toast: (o) => log(`[toast] ${o.level || ''} ${o.text || o.message || ''}`),
+    confirm: async (o) => {
+      log(`[confirm] ${o.title}｜${o.message} → 返回 ${document.getElementById('ck-resume').checked}`);
+      return document.getElementById('ck-resume').checked;
+    },
+    nav: (hash) => log(`[nav] → ${hash}`),
+    onComplete: (dest) => {
+      log(`[onComplete] dest=${dest}（生产=回写 tgo.onboarded 后跳转）`);
+      // Demo：模拟“跳转后再次进入” → 重建视图便于反复验收
+      view.destroy();
+      view.render();
+      log('已重建视图（模拟非首次进入 → 生产中不再出现引导）');
+    },
+  });
+  view.render();
+  log('视图已装载（onboarded=false → 首启引导）。切换场景观察步骤 1/2 与分流。');
+
+  // ---- 场景接线 ----
+  function seg(id, onPick) {
+    const root = document.getElementById(id);
+    root.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      root.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+      onPick(btn.dataset.v);
+    });
+  }
+
+  seg('seg-models', (v) => {
+    modelScenario = v;
+    log(`模型场景 → ${v}（点击“重新检测”生效）`);
+    const btn = document.querySelector('#ob-host #ob-recheck');
+    if (btn) btn.click();
+  });
+  document.getElementById('btn-recheck').addEventListener('click', () => {
+    const btn = document.querySelector('#ob-host #ob-recheck');
+    if (btn) btn.click();
+  });
+
+  let tuningTimer = null;
+  function stopTune() {
+    if (tuningTimer) { clearInterval(tuningTimer); tuningTimer = null; }
+  }
+  seg('seg-engine', (v) => {
+    stopTune();
+    if (v === 'none') store.dispatch({ type: 'engine.status', data: { state: null, progress: null } });
+    else if (v === 'init') store.dispatch({ type: 'engine.status', data: { state: 'INIT', progress: null } });
+    else if (v === 'idle') store.dispatch({ type: 'engine.status', data: { state: 'IDLE', progress: null } });
+    else if (v === 'busy') store.dispatch({ type: 'engine.status', data: { state: 'ANALYZING', progress: null } });
+    else if (v === 'dead') store.dispatch({ type: 'engine.status', data: { state: 'DEAD', progress: null } });
+    else if (v === 'fatal') store.dispatch({ type: 'engine.status', data: { state: 'FATAL', progress: null, reason: null } });
+    else if (v === 'fatal-no-model') {
+      // BUG-090 事实对齐：无引擎管理器（服务启动时标准模型缺失）→ 横幅/胶囊/卡片均指向模型
+      store.dispatch({ type: 'engine.status', data: { state: 'FATAL', progress: null, reason: 'standard_model_missing' } });
+    }
+    else if (v === 'tune') {
+      let p = 0;
+      store.dispatch({ type: 'engine.status', data: { state: 'INIT', progress: p } });
+      tuningTimer = setInterval(() => {
+        p = Math.min(100, p + 7);
+        store.dispatch({ type: 'engine.status', data: { state: 'INIT', progress: p } });
+        if (p >= 100) {
+          stopTune();
+          store.dispatch({ type: 'engine.status', data: { state: 'IDLE', progress: null } });
+          log('GPU 调优完成 → IDLE（恢复 Toast 应在生产环境出现）');
+        }
+      }, 600);
+    }
+    log(`引擎场景 → ${v}`);
+  });
+
+  seg('seg-active', (v) => {
+    activeScenario = v;
+    log(`active-latest 场景 → ${v}（点击 [进入 tGo] 观察分流）`);
+  });
+
+  // 派生实时预览
+  store.subscribe(() => {
+    const s = store.getState();
+    const step = deriveEngineStep(s.engine);
+    const engine = s.engine || {};
+    stateEl.innerHTML = `engine.state=<b>${engine.state ?? 'null'}</b> · progress=<b>${engine.progress ?? 'null'}</b><br>step=<b>${step}</b>`;
+  });
+  stateEl.innerHTML = 'engine.state=<b>null</b> · step=<b>connecting</b>';
+
+  // demo 主题切换（复用 review-tools 审核工具）
+  document.getElementById('theme-btn').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+    document.getElementById('theme-btn').innerHTML =
+      `<svg class="icon"><use href="#${dark ? 'i-sun' : 'i-moon'}"/></svg>${dark ? '浅色' : '深色'}`;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# Docker 构建上下文排除项
+# 镜像只包含运行必需文件；引擎/模型/数据/日志/配置均在运行时挂载。
+
+# 运行时挂载（绝不进镜像）
+engine/
+data/
+logs/
+config/
+config.yaml
+
+# Python 运行环境与缓存
+backend/.venv/
+.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# 仓库内非运行目录（构建上下文回退到仓库根时生效）
+screenshot/
+sgf/
+tGo-Setup/
+WEBUI/
+docs/
+katago/
+.git/
+.gitignore
+tools/cache/
+*.zip
+*.tar
+*.tar.gz
+
+# 根目录上下文回退：排除发布包不会包含的测试/开发文件
+frontend/sponsor/
+frontend/tests/
+frontend/node_modules/
+frontend/package.json
+frontend/package-lock.json
+frontend/static/component/
+backend/tests/
+backend/pytest.ini
+backend/requirements-dev.txt
+backend/README.md
+node-test.txt
+
+# 根目录文档/开发说明（不 COPY 进镜像）
+AGENTS.md
+CHANGELOG.md
+DEPLOYMENT.md
+ISSUES.md
+LEVEL.md
+PROMPTS.md
+REQUIREMENTS.md
+README.md
+# LICENSE 需 COPY 进镜像，不能在此排除
+
+# 编辑器/系统杂项
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

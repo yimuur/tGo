@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · 棋盘留白方案帧（demo）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+/* ============================================================================
+ * tGo · 棋盘留白方案 demo —— **帧页**（由 board-wood-demo.html 以 iframe 载入）
+ *
+ * 定位：QA/演示页（component/ 不随产品发布、不进 required-files 清单）。
+ *      **不改动任何产品文件**：骨架复用产品类名（.layout.game/.board-zone/.board-wrap/
+ *      .info-row/.bottom-row/.sidebar/.topbar），故产品布局规则（body:has(.layout.game)
+ *      的视口适配、板区 max-width:1080、棋盘最小边长兜底等）原样生效；
+ *      差异部分（各方案的台面/浮板/整块木料）全部写在本页 <style> 内。
+ *
+ * 查询参数：?opt=A|B|C|D|E|F & theme=light|dark & accent=dai|zhu & size=19|13|9
+ *   A 现状          矩形棋盘容器（木料底，无留白木纹）+ 方形画布居中  ← 当前产品行为
+ *   B 方案1 整块木料 留白处补木纹：整块矩形一层木纹，木料=整个容器
+ *   C 方案2 浮板+页面底色   容器退为背景（无 Z 高/去阴影），方形木料板浮起
+ *   D 方案2 浮板+深色毡布   同上，背景＝深色毡布（最接近“真实棋盘垫在布上”）
+ *   E 方案2 浮板+同料台面   同上，背景＝同料压暗台面（木料延续 + 高度感）
+ *   F 建议  棋区恒方形      不留留白：容器收到正方形，两侧直接露页面背景
+ * ========================================================================== */
+:root { --demo-oldboard: var(--shadow-board); }
+
+/* ---- 方案 2/3：容器＝台面/布面（无 Z 高、去阴影） ---- */
+body.v-c #wrap,
+body.v-d #wrap,
+body.v-e #wrap { box-shadow: none; }
+
+/* 方形木料棋盘（浮起于台面/布面之上）。产品化口径：棋盘容器由 .board-wrap 改为本元素
+   （GameBoard 的几何/居中/画布定位全部以它为准），.board-wrap 退化为背景面。
+   ⚠ 不能写 `inset:0 + margin:auto + width:auto`——绝对定位下 left/right 均为 0 会把宽度
+   算成“填满”，aspect-ratio 不生效（盒子被压成矩形）；改用 left:50% + translateX(-50%)
+   居中，宽度由高度 × 1:1 推导。 */
+.board-panel {
+  position: absolute; top: 0; bottom: 0; left: 50%; right: auto;
+  transform: translateX(-50%);
+  height: 100%; width: auto; max-width: 100%; aspect-ratio: 1;
+  border-radius: 8px; background: var(--board-bg); box-shadow: var(--shadow-board);
+  overflow: hidden;
+}
+/* 方案 1：木料面由产品静态层铺满整个容器（2026/09/22 已产品化），本页无需额外层 */
+body.v-d .board-panel { box-shadow: var(--shadow-board), 0 26px 64px rgba(0, 0, 0, .42); }
+body.v-e .board-panel { box-shadow: var(--shadow-board), 0 22px 54px rgba(0, 0, 0, .34); }
+
+/* ---- 方案 1：整块木料（留白补木纹）——整块矩形一层木纹 ---- */
+.grain-rect { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+
+/* ---- 各方案“台面/布面”材质（demo 取值；产品化时再抽 token） ---- */
+/* C：页面底色（等于“不引入新材质”，棋盘直接坐在页面底色上，但容器仍是有边界的面） */
+body.v-c #wrap {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(0, 0, 0, .035), rgba(0, 0, 0, 0) 70%),
+    var(--bg-base);
+}
+/* D：深色毡布（细密经纬 + 顶端柔光，模拟铺布的质感） */
+body.v-d #wrap {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, .07), rgba(0, 0, 0, .22) 78%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .030) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .050) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    linear-gradient(160deg, #41524B, #2C3835);
+}
+html[data-theme="dark"] body.v-d #wrap {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, .05), rgba(0, 0, 0, .30) 78%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .022) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .060) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    linear-gradient(160deg, #2B3A34, #1D2724);
+}
+/* E：同料压暗台面（同一木料的暗面；木纹由 .grain-rect 续画，用压暗后的颜色） */
+body.v-e #wrap {
+  background:
+    radial-gradient(120% 110% at 50% 0%, rgba(0, 0, 0, .10), rgba(0, 0, 0, 0) 72%),
+    linear-gradient(160deg, #C9A97C, #A68458);
+}
+html[data-theme="dark"] body.v-e #wrap {
+  background:
+    radial-gradient(120% 110% at 50% 0%, rgba(0, 0, 0, .28), rgba(0, 0, 0, 0) 72%),
+    linear-gradient(160deg, #472A20, #331C15);
+}
+
+/* ---- 建议 F：棋区恒方形（把“留白”本身消掉；容器不再被钳成矩形） ---- */
+body.v-f #wrap {
+  flex: 0 1 auto;
+  width: auto; height: 100%; max-width: 100%; aspect-ratio: 1;
+  align-self: center;
+}
+
+/* ---- demo 元信息芯片（不在产品样式内） ---- */
+.demo-chip {
+  position: fixed; left: 10px; bottom: 10px; z-index: 40;
+  padding: 6px 10px; border-radius: 10px; font-size: 12px; line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-glass-strong); border: 1px solid var(--border);
+  backdrop-filter: blur(12px) saturate(1.2); color: var(--text-1);
+  box-shadow: var(--shadow-card); max-width: 92vw;
+}
+.demo-chip b { color: var(--accent); }
+.demo-chip .row2 { display: block; color: var(--text-2); }
+</style>
+</head>
+<body class="v-a">
+
+<header class="topbar">
+  <div class="row1">
+    <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+    <div class="spacer"></div>
+    <button class="eng-pill" title="引擎详情" aria-haspopup="dialog" aria-expanded="false">
+      <span class="dot s-idle"></span><span class="eng-label">就绪</span>
+    </button>
+    <button class="icon-btn" title="静音" aria-label="静音" aria-pressed="false">
+      <svg class="icon"><use href="#i-volume"/></svg>
+    </button>
+    <button class="icon-btn" title="主题" aria-label="主题">
+      <svg class="icon"><use href="#i-sun"/></svg>
+    </button>
+  </div>
+  <div class="row2">
+    <nav class="main" aria-label="主导航">
+      <a href="#" class="active">对弈</a><a href="#">复盘</a><a href="#">管理</a>
+    </nav>
+    <a class="btn btn-primary top-cta" href="#"><svg class="icon"><use href="#i-plus"/></svg>创建对局</a>
+  </div>
+</header>
+
+<main class="layout game">
+  <section class="board-zone">
+    <div class="info-row">
+      <button class="btn btn-ghost info-icon" type="button" title="对局信息" aria-label="对局信息">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+      </button>
+      <div class="info-meta num" id="info-meta">对局 #128 · 19 路 · 中国规则 · 贴 7.5 · 人机 · 黑先</div>
+      <div class="info-actions">
+        <button class="btn btn-ghost" type="button">认输</button>
+        <button class="btn btn-ghost" type="button">重开</button>
+        <button class="btn btn-ghost" type="button" title="沉浸模式" aria-label="沉浸模式">
+          <svg class="icon" aria-hidden="true"><use href="#i-immersive"/></svg>
+        </button>
+      </div>
+      <button class="btn btn-ghost menu-more" type="button" title="更多" aria-label="更多操作">
+        <svg class="icon" aria-hidden="true" style="width:17px;height:17px"><use href="#i-more"/></svg>
+      </button>
+    </div>
+
+    <div class="board-wrap" id="wrap">
+      <div class="board-panel" id="panel"></div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="wr-bar is-grey" role="img" aria-label="黑白胜率">
+        <span class="wr-label num">53%</span>
+        <div class="wr-track"><span class="b" style="width:53%"></span><span class="w"></span></div>
+      </div>
+      <div class="captures"><span>提子 黑 0 · 白 0</span></div>
+      <div class="bottom-actions">
+        <button class="btn btn-secondary" type="button">PASS</button>
+        <button class="btn btn-secondary" type="button">悔棋</button>
+        <button class="btn btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-coach"/></svg>支招</button>
+        <button class="btn btn-secondary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-territory"/></svg>领地</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <div class="card">
+      <h3><svg class="icon"><use href="#i-info"/></svg>对局信息</h3>
+      <div class="muted" style="font-size:13px">第 24 手 · 白 M14<br>黑 0 目 · 白 0 目 · 贴 7.5 目</div>
+    </div>
+    <div class="card">
+      <h3><svg class="icon"><use href="#i-coach"/></svg>AI 支招</h3>
+      <div class="muted" style="font-size:13px">1. 白 M14 · 胜率 53% · 目差 +1.2<br>2. 黑 Q10 · 胜率 51% · 目差 +0.4</div>
+    </div>
+  </aside>
+</main>
+
+<div class="demo-chip" id="chip">…</div>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+/* ============================================================================
+ * 方案帧逻辑（demo）：把各方案渲染成“真实对弈页的一张截图”，供人类目视比较。
+ * 只用产品模块（GameBoard / wood-grain），**不修改**产品代码；
+ * 需要“整块木料”时用 CSS 变量局部屏蔽产品静态层木纹（见 applyRectGrain 注释）。
+ * ========================================================================== */
+import GameBoard from '../js/core/board.js';
+import { woodGrainPlan, paintWoodGrain } from '../js/core/wood-grain.js';
+
+const q = new URLSearchParams(location.search);
+const OPT = (q.get('opt') || 'A').toUpperCase();
+const THEME = q.get('theme') === 'dark' ? 'dark' : 'light';
+const ACCENT = q.get('accent') === 'zhu' ? 'zhu' : 'dai';
+const SIZE = [9, 13, 19].includes(Number(q.get('size'))) ? Number(q.get('size')) : 19;
+
+const root = document.documentElement;
+root.dataset.theme = THEME;
+root.dataset.accent = ACCENT;
+document.body.className = `v-${OPT.toLowerCase()}`;
+
+const wrap = document.getElementById('wrap');
+const panel = document.getElementById('panel');
+const chip = document.getElementById('chip');
+document.getElementById('info-meta').textContent =
+  `对局 #128 · ${SIZE} 路 · 中国规则 · 贴 7.5 · 人机 · 黑先`;
+
+/** 方案定义（芯片文案 / 说明）。 */
+const VARIANTS = {
+  A: { name: 'A · 现状（对照）', note: '矩形容器＝木料（留白无木纹）+ 方形画布居中' },
+  B: { name: 'B · 方案 1 整块木料', note: '留白补木纹 → 整块矩形一层木纹；木料＝整个容器' },
+  C: { name: 'C · 方案 2 浮板 + 页面底色', note: '容器退为背景（去阴影）；方形木料板浮起' },
+  D: { name: 'D · 方案 2 浮板 + 深色毡布', note: '同上；背景＝深色毡布（真实棋盘垫布感）' },
+  E: { name: 'E · 方案 2 浮板 + 同料台面', note: '同上；背景＝同料压暗台面（木料延续 + 高度感）' },
+  F: { name: 'F · 建议 棋区恒方形', note: '不留留白：容器收到正方形，两侧直接露页面背景' },
+};
+
+/** 归一化散点开局（按路数换算；去重后落子）。 */
+const SCENE = [
+  [0.17, 0.17, 'B'], [0.50, 0.17, 'B'], [0.83, 0.17, 'B'],
+  [0.17, 0.50, 'B'], [0.50, 0.50, 'B'], [0.83, 0.50, 'B'],
+  [0.33, 0.33, 'W'], [0.67, 0.33, 'W'], [0.33, 0.67, 'W'],
+  [0.67, 0.67, 'W'], [0.50, 0.83, 'B'], [0.83, 0.83, 'W'],
+  [0.67, 0.17, 'W'], [0.17, 0.83, 'B'],
+];
+
+function mockStones(n) {
+  const seen = new Set();
+  const stones = [];
+  for (const [nx, ny, color] of SCENE) {
+    const x = Math.round(nx * (n - 1));
+    const y = Math.round(ny * (n - 1));
+    const key = x * 100 + y;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    stones.push({ x, y, color: color === 'B' ? 'black' : 'white', moveNo: stones.length + 1 });
+  }
+  return stones;
+}
+
+/* ---------------- 方案 1（已产品化） ----------------
+ * 2026/09/22：方案 B 已实施到产品（木料面＝容器整幅、木纹随棋盘缩放平移），
+ * 故本 demo 不再需要自带留白木纹层（否则与产品静态层叠成两份）：
+ * v-b 现与 v-a 渲染一致（仅作历史记录）。 */
+/** 方案 E：台面＝同料压暗，木纹用压暗配色续画（demo 取值，不读产品 token）。 */
+function applyTableGrain() {
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+  if (!W || !H) return;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  let cv = wrap.querySelector('.grain-rect');
+  if (!cv) {
+    cv = document.createElement('canvas');
+    cv.className = 'grain-rect';
+    wrap.insertBefore(cv, wrap.firstChild);
+  }
+  const side = Math.min(W, H);
+  const cell = side / (SIZE + 0.8);
+  cv.width = Math.round(W * dpr);
+  cv.height = Math.round(H * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const dark = THEME === 'dark';
+  paintWoodGrain(ctx, woodGrainPlan({ side: W, cell }), {
+    lineStyle: dark ? 'rgba(0,0,0,.22)' : 'rgba(88,58,28,.10)',
+    bandStyle: dark ? 'rgba(255,205,150,.035)' : 'rgba(88,58,28,.06)',
+  });
+}
+
+/* ---------------- 挂载棋盘 ---------------- */
+
+const floatPanel = OPT === 'C' || OPT === 'D' || OPT === 'E';   // 浮板方案：挂到方形面板
+const mountEl = floatPanel ? panel : wrap;
+if (!floatPanel) panel.remove();
+
+const board = new GameBoard(mountEl, {
+  size: SIZE,
+  toMove: 'black',
+  stones: mockStones(SIZE),
+  showCoordinates: true,
+  interactive: false,        // demo：只看观感，免误触
+  stoneMotion: false,
+  top5: [
+    { x: Math.round(SIZE * 0.5), y: Math.round(SIZE * 0.5), rank: 1 },
+    { x: Math.round(SIZE * 0.35), y: Math.round(SIZE * 0.5), rank: 2 },
+    { x: Math.round(SIZE * 0.65), y: Math.round(SIZE * 0.5), rank: 3 },
+  ],
+  comments: [{ x: Math.round(SIZE * 0.5), y: Math.round(SIZE * 0.5), grade: 'good' }],
+  ariaLabel: `${SIZE} 路棋盘（留白方案 demo）`,
+});
+
+function paintSurfaceGrain() {
+  if (OPT === 'E') applyTableGrain();
+}
+
+/** 量测（供本页芯片与宿主页读取）。
+ *  方形棋盘边长：A/B/F＝min(容器宽, 容器高)（画布自身取正方形并居中）；
+ *  C/D/E＝方形面板边长（棋盘容器已是方形面板）。 */
+function metrics() {
+  const wr = wrap.getBoundingClientRect();
+  const side = floatPanel
+    ? Math.round(panel.getBoundingClientRect().width)
+    : Math.min(wrap.clientWidth, wrap.clientHeight);
+  const band = Math.max(0, Math.round((wrap.clientWidth - side) / 2));
+  return {
+    opt: OPT,
+    name: VARIANTS[OPT].name,
+    note: VARIANTS[OPT].note,
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+    wrap: { w: wrap.clientWidth, h: wrap.clientHeight },
+    side,
+    band,
+    boardRect: { x: wr.left, y: wr.top, w: wr.width, h: wr.height },
+  };
+}
+
+function refreshChip() {
+  const m = metrics();
+  chip.innerHTML =
+    `<b>${m.name}</b><span class="row2">视口 ${m.vw}×${m.vh} ｜ 棋盘容器 ${m.wrap.w}×${m.wrap.h} ｜ ` +
+    `方形棋盘 ${m.side}×${m.side} ｜ 两侧留白 ${Math.round(m.band)}px/侧</span>` +
+    `<span class="row2">${m.note}</span>`;
+}
+
+function relayout() {
+  paintSurfaceGrain();
+  refreshChip();
+}
+
+if (typeof ResizeObserver !== 'undefined') {
+  const ro = new ResizeObserver(relayout);
+  ro.observe(wrap);
+  ro.observe(document.body);
+}
+window.addEventListener('resize', relayout);
+requestAnimationFrame(relayout);
+
+/** 宿主页（同源）接口：读取量测 + 棋盘区矩形 + 棋盘实例（仅 demo：便于实证“木纹随动”）。 */
+window.__woodDemo = { metrics, ready: true, board };
+</script>
+</body>
+</html>

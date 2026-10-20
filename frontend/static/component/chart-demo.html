@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-accent="dai">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tGo · 曲线 / 格式化 / Worker 底座 Demo（T5.6）</title>
+<link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
+
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  /* Demo 专用（产品样式零改动） */
+  .demo-grid { display: grid; grid-template-columns: minmax(320px, 560px) 360px; gap: 20px; align-items: start; }
+  @media (max-width: 980px) { .demo-grid { grid-template-columns: 1fr; } }
+  .chart { height: 160px; }
+  .chart svg { width: 100%; height: 100%; }
+  .wr-bar { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; max-width: 480px; margin: 8px 0; }
+  .wr-label { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 52px; }
+  .wr-label small { color: var(--text-3); }
+  .wr-track { height: 12px; display: flex; gap: 2px; width: 100%; }
+  .wr-track .b, .wr-track .w { border-radius: 999px; display: block; }
+  .wr-track .b { background: #33402F; }
+  .wr-track .w { background: #F2EFE8; }
+  .demo-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; }
+  .kv-grid .k { color: var(--text-3); }
+  .kv-grid .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-1); }
+  .demo-log { font-size: 12px; color: var(--text-2); min-height: 18px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header class="topbar" style="position:static">
+  <div class="brand"><span class="brand-logo" role="img" aria-label="tGo 围棋"></span></div>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" id="theme-btn"><svg class="icon"><use href="#i-sun"/></svg>浅色</button>
+  <a class="btn btn-ghost" href="../index.html">← 返回 SPA</a>
+</header>
+
+<main class="layout" style="padding-top:12px">
+  <h1 style="font-size:20px;margin:0 0 2px">曲线 / 格式化 / Worker 底座（T5.6）</h1>
+  <div class="muted" style="font-size:12px;margin-bottom:12px">
+    <code>node --test tests/{curve,fmt,analysis-worker}.test.js</code> 无头覆盖纯函数；
+    本页人工验收：曲线与 <code>WEBUI/pages/game.html</code>（js/curve-demo.js）视觉一致、240ms path morph、
+    黑白胜率条（C16 样式）、格式化矩阵、Worker 消息闭环。
+  </div>
+
+  <div class="demo-grid">
+    <div>
+      <div class="card">
+        <h3><svg class="icon"><use href="#i-curve"/></svg>胜率 / 目差曲线（黑）· 对弈样例（42 手）</h3>
+        <div class="chart">
+          <svg id="curve-game" viewBox="0 0 340 160" preserveAspectRatio="none" role="img" aria-label="胜率/目差曲线（对弈 42 手）"></svg>
+        </div>
+        <div class="coach-foot">hover 显示：第 N 手 · 胜率 54.2% · 目差 +3.1（实线=胜率 · 虚线=目差）</div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3><svg class="icon"><use href="#i-curve"/></svg>回放样例（88 手）· morph 演示</h3>
+        <div class="chart">
+          <svg id="curve-review" viewBox="0 0 340 160" preserveAspectRatio="none" role="img" aria-label="胜率/目差曲线（回放 88 手）"></svg>
+        </div>
+        <div class="demo-row">
+          <button class="btn btn-secondary btn-sm" id="btn-morph">240ms morph ▸</button>
+          <button class="btn btn-ghost btn-sm" id="btn-imm">直切（无动画）</button>
+          <button class="btn btn-ghost btn-sm" id="btn-cur">换当前手</button>
+        </div>
+        <div class="muted" style="font-size:12px">切到「AI 优势回落」数据观察 240ms 路径插值（仅更新 path d，不重建 DOM）。</div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3><svg class="icon"><use href="#i-territory"/></svg>黑白胜率条（C16 样式，≤1199px 显示场景）</h3>
+        <div class="wr-bar" id="wr-bar-demo"></div>
+        <div class="demo-row">
+          <button class="btn btn-secondary btn-sm" data-wr="43">黑 43%</button>
+          <button class="btn btn-secondary btn-sm" data-wr="62">黑 62%（回放）</button>
+          <button class="btn btn-secondary btn-sm" data-wr="54">黑 54%</button>
+          <button class="btn btn-ghost btn-sm" id="btn-wr-clear">无数据</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3><svg class="icon"><use href="#i-play"/></svg>Worker 消息闭环</h3>
+        <div class="demo-row">
+          <button class="btn btn-secondary btn-sm" id="btn-worker">发送 ownership/PV/LRU 任务</button>
+        </div>
+        <div class="demo-log" id="worker-log">（未运行）</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px">
+      <h3 style="margin-top:0"><svg class="icon"><use href="#i-params"/></svg>格式化矩阵（fmt.js）</h3>
+      <div class="kv-grid" id="fmt-grid"></div>
+      <div class="muted" style="font-size:12px;margin-top:10px">
+        负号统一 U+2212 −；时间相对 ≤7 天；结果 `黑胜 2.5 目 (B+2.5)`；段位 `5K/1D`。
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../js/icons.js"></script>
+<script type="module">
+import { renderCurve, updateCurve, morphCurve, CURVE_MORPH_MS } from '../js/core/curve.js';
+import {
+  pct, signedPct, scoreLead, scoreLeadUnit, visits, rankText,
+  relTimeText, resultText, gradeBubbleTitle, pctCompact,
+} from '../js/core/fmt.js';
+
+const $ = (id) => document.getElementById(id);
+const themeBtn = $('theme-btn');
+
+/* ---- 主题 ---- */
+themeBtn.addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  themeBtn.innerHTML = `<svg class="icon"><use href="#${dark ? 'i-sun' : 'i-moon'}"/></svg>${dark ? '浅色' : '深色'}`;
+});
+themeBtn.innerHTML = `<svg class="icon"><use href="#i-sun"/></svg>浅色`;
+
+/* ---- 曲线数据（与 WEBUI 演示数据同构：winrate % / scoreLead 目） ---- */
+const gamePts = [
+  [0, 52, -2.7], [1, 56, 0.9], [2, 55, -4.5], [3, 62, 3.6], [4, 60, -1.8], [5, 66, 5.5],
+  [6, 64, 0], [7, 69, 7.3], [8, 67, 1.8], [9, 72, 9.1], [10, 70, 3.6], [11, 75, 10.9], [12, 73, 5.5],
+].map(([moveNo, winrate, scoreLead]) => ({ moveNo, winrate, scoreLead }));
+
+const reviewPts = [
+  [0, 50, -3.5], [1, 56, 0.5], [2, 54, -6.5], [3, 62, 3.5], [4, 60, -2.5], [5, 66, 6.5],
+  [6, 64, 0.5], [7, 70, 8.5], [8, 68, 2.5], [9, 73, 10.5], [10, 70, 4.5], [11, 64, -1.5], [12, 67, 3.5],
+].map(([moveNo, winrate, scoreLead]) => ({ moveNo, winrate, scoreLead }));
+
+const reviewAltPts = reviewPts.map((p, i) => ({
+  moveNo: p.moveNo,
+  winrate: i >= 9 ? Math.max(38, 64 - (i - 9) * 8) : p.winrate,
+  scoreLead: i >= 9 ? Math.min(3, p.scoreLead - 4) : p.scoreLead,
+}));
+
+renderCurve($('curve-game'), { pts: gamePts, current: 12, total: 42 });
+const reviewCfg = { pts: reviewPts, current: 12, total: 88 };
+renderCurve($('curve-review'), reviewCfg);
+
+let reviewState = 'base';
+function setReview(data, label) {
+  updateCurve($('curve-review'), data);
+  reviewState = label;
+}
+$('btn-imm').addEventListener('click', () => {
+  setReview(reviewState === 'alt' ? reviewCfg : { ...reviewCfg, pts: reviewAltPts }, reviewState === 'alt' ? 'base' : 'alt');
+});
+$('btn-morph').addEventListener('click', () => {
+  const to = reviewState === 'alt' ? reviewCfg : { ...reviewCfg, pts: reviewAltPts };
+  morphCurve($('curve-review'), to, { duration: CURVE_MORPH_MS });
+  reviewState = reviewState === 'alt' ? 'base' : 'alt';
+});
+let curNo = 12;
+$('btn-cur').addEventListener('click', () => {
+  curNo = curNo === 12 ? 5 : 12;
+  updateCurve($('curve-game'), { pts: gamePts, current: curNo, total: 42 });
+});
+
+/* ---- 黑白胜率条（C16；2026/09/05 人工反馈：附注统一在黑方旁显示，null 不显示） ---- */
+function renderWr(black, white, delta) {
+  const bNote = delta != null ? `<small>${signedPct(delta, 0)}</small>` : '';
+  $('wr-bar-demo').innerHTML = `
+    <div class="wr-label num">黑 ${pctCompact(black)} ${bNote}</div>
+    <div class="wr-track"><div class="b" style="width:${black}%"></div><div class="w" style="flex:1"></div></div>
+    <div class="wr-label num">白 ${pctCompact(white)}</div>`;
+}
+document.querySelectorAll('[data-wr]').forEach((b) => b.addEventListener('click', () => {
+  const bv = Number(b.dataset.wr);
+  const wv = 100 - bv;
+  renderWr(bv, wv, bv === 54 ? null : -5);
+}));
+$('btn-wr-clear').addEventListener('click', () => {
+  $('wr-bar-demo').innerHTML = '<div class="muted" style="font-size:12px">无数据</div>';
+});
+renderWr(43, 56, -5);
+
+/* ---- 格式化矩阵 ---- */
+const now = Date.now();
+const fmtRows = [
+  ['胜率（1 位）', pct(54.2)],
+  ['胜率（整数条）', pctCompact(43)],
+  ['coach ΔW', signedPct(4.2)],
+  ['胜率条 Δ', signedPct(-5, 0)],
+  ['目差', scoreLead(3.1)],
+  ['目差（负）', scoreLead(-2.8)],
+  ['目差带单位', scoreLeadUnit(3.1)],
+  ['Visit', visits(1200)],
+  ['段位', rankText('rank_5k') + ' / ' + rankText('rank_1d')],
+  ['结果', resultText('B+7.5')],
+  ['中盘胜', resultText('W+Resign')],
+  ['点评', gradeBubbleTitle('mistake')],
+  ['相对时间', relTimeText(now - 3 * 86400e3, { now })],
+  ['昨天', relTimeText(now - 26 * 3600e3, { now })],
+];
+$('fmt-grid').innerHTML = fmtRows
+  .map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`)
+  .join('');
+
+/* ---- Worker 闭环（ESM worker；http 下同源可用） ---- */
+$('btn-worker').addEventListener('click', () => {
+  const log = $('worker-log');
+  let w;
+  try {
+    w = new Worker('../js/workers/analysis.worker.js', { type: 'module' });
+  } catch (e) {
+    log.textContent = 'Worker 创建失败：' + e.message;
+    return;
+  }
+  log.textContent = 'Worker 已创建…';
+  w.onerror = (e) => { log.textContent = 'Worker 错误：' + (e.message || e.type); };
+  const pending = { id: 1, type: 'ownership', data: { values: new Array(361).fill(0).map((_, i) => (i % 7 === 0 ? 0.8 : i % 5 === 0 ? -0.6 : 0)), n: 19 } };
+  const send = (msg) => w.postMessage(msg);
+  const results = [];
+  w.onmessage = (e) => {
+    results.push(e.data);
+    if (e.data.id === 1) {
+      send({ id: 2, type: 'pv', data: { pv: ['D4', 'E5', 'D5', 'Q16', 'R16'], n: 19, firstColor: 'black', maxSteps: 10 } });
+    } else if (e.data.id === 2) {
+      send({ id: 3, type: 'lru_set', data: { key: 'main:3', value: { winrate: 0.54 } } });
+      send({ id: 4, type: 'lru_get', data: { key: 'main:3' } });
+    } else if (e.data.id === 3) {
+      send({ id: 4, type: 'lru_get', data: { key: 'main:3' } });
+    } else if (e.data.id === 4) {
+      const o = results.find((r) => r.id === 1).result;
+      const p = results.find((r) => r.id === 2).result;
+      const g = e.data.result;
+      const nonZero = o.alphas.filter((v) => v > 0).length;
+      log.textContent =
+        `ownership: n=${o.n} 非零热力点 ${nonZero}；pv: ${p.points.map((s) => `${s.color[0].toUpperCase()}(${s.x},${s.y})`).join(' ')}` +
+        `\nlru: get main:3 → winrate ${g.winrate}`;
+      w.terminate();
+    }
+  };
+  send(pending);
+  setTimeout(() => {
+    if (!results.length) log.textContent = log.textContent + '\n（等待响应超时，请检查 Worker 脚本加载）';
+  }, 3000);
+});
+</script>
+</body>
+</html>
